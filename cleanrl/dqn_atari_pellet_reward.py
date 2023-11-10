@@ -133,39 +133,50 @@ class PelletReplayBuffer(ReplayBuffer):
         return ReplayBufferSamples(*tuple(map(self.to_torch, data)))
 
 
-    def sample_state_pairs(self, batch_size: int) -> EEReplayBufferSamples:
+    def sample_state_pairs(self, batch_size: int) -> Optional[EEReplayBufferSamples]:
         if self.full:
             batch_inds = (np.random.randint(1, self.buffer_size, size=batch_size) + self.pos) % self.buffer_size
         else:
             batch_inds = np.random.randint(0, self.pos, size=batch_size)
-
-        env_indices = np.random.randint(0, high=self.n_envs, size=(len(batch_inds),))
-        
+       
+        eps_starts = []
         eps_ends = []
         aux_rewards = []
+        aux_rewards_index = []
         size = self.size()
         for index in batch_inds:
-            for offset in range(size):
+            if self.dones[index] or self.pos == (index):
+                continue
+
+            for offset in range(1, size):
                 arr_index = (index + offset) % size
                 if self.dones[arr_index] or self.pos == (arr_index) or offset+1 == size:
                     end_offset = np.random.randint(1, offset + 2)
                     end_index = (end_offset + index) % self.buffer_size
-                    eps_ends.append(end_index)
 
-                    if offset == 0:
-                        aux_rewards.append(torch.ones((self.action_space.n, )) / self.action_space.n)
+                    if offset == 1:
+                        aux = torch.ones((self.action_space.n, )) / self.action_space.n
                     else:
                         aux = np.take(self.aux_rewards[:, 0], range(index, index + end_offset), axis=0, mode='wrap')
                         gammas = args.gamma**np.arange(end_offset)
                         # Vector-Matrix multiplication + Sum
                         aux = torch.Tensor(np.einsum('i,ik', gammas, aux))
-                        aux_rewards.append(aux)
+
+                    aux_rewards_index.append(index)
+                    eps_starts.append(index + 1)
+                    aux_rewards.append(aux)
+                    eps_ends.append(end_index)
                     break
-                
+        
+        if len(eps_starts) == 0:
+            return None
+        
+        env_indices = np.zeros((len(eps_starts), ), dtype=np.int64)
+        
         data = (
-            self.observations[batch_inds, env_indices, -1, :],
+            self.observations[eps_starts, env_indices, -1, :],
             self.observations[eps_ends, env_indices, -1, :],
-            self.aux_rewards[batch_inds, env_indices],
+            self.aux_rewards[aux_rewards_index, env_indices],
             torch.stack(aux_rewards)
         )
         return EEReplayBufferSamples(*tuple(map(self.to_torch, data)))
@@ -590,24 +601,24 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         # ALGO LOGIC: training EE.
         if global_step % args.train_frequency == 0:
             data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
-            
-            input = torch.stack([data.observations, data.future_observations], dim=1)
-            
-            pred = ee.network(input)
-            target_onestep = data.first_aux_rewards + args.gamma * pred
-            target_mc = data.discounted_aux_rewards
-            target = (1 - args.eta) * target_onestep + args.eta * target_mc
-            loss = F.mse_loss(target, pred)
+            if data is not None:
+                input = torch.stack([data.observations, data.future_observations], dim=1)
+                
+                pred = ee.network(input)
+                target_onestep = data.first_aux_rewards + args.gamma * pred
+                target_mc = data.discounted_aux_rewards
+                target = (1 - args.eta) * target_onestep + args.eta * target_mc
+                loss = F.mse_loss(target, pred)
 
-            if global_step % 100 == 0:
-                writer.add_scalar("ee_losses/ee_loss", loss, global_step)
-                writer.add_scalar("ee_losses/ee_distance_predicted", euclidian_distance(target_onestep).mean().item(), global_step)
-                writer.add_scalar("ee_losses/ee_distance", euclidian_distance(target_mc).mean().item(), global_step)
+                if global_step % 100 == 0:
+                    writer.add_scalar("ee_losses/ee_loss", loss, global_step)
+                    writer.add_scalar("ee_losses/ee_distance_predicted", euclidian_distance(target_onestep).mean().item(), global_step)
+                    writer.add_scalar("ee_losses/ee_distance", euclidian_distance(target_mc).mean().item(), global_step)
 
-            # optimize the model
-            ee.optimizer.zero_grad()
-            loss.backward()
-            ee.optimizer.step()
+                # optimize the model
+                ee.optimizer.zero_grad()
+                loss.backward()
+                ee.optimizer.step()
 
 
     if args.save_model:
