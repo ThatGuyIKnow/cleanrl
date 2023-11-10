@@ -163,7 +163,7 @@ class PelletReplayBuffer(ReplayBuffer):
                         aux = torch.Tensor(np.einsum('i,ik', gammas, aux))
 
                     aux_rewards_index.append(index)
-                    eps_starts.append(index + 1)
+                    eps_starts.append((index + 1) % size)
                     aux_rewards.append(aux)
                     eps_ends.append(end_index)
                     break
@@ -243,6 +243,10 @@ def parse_args():
         help="constant bonus factor for pellets")
     parser.add_argument("--eta", type=float, default=0.1,
         help="monte carlo mixing factor for ee")
+    parser.add_argument("--mc_clip", type=float, default=0.5,
+        help="monte carlo clipping factor for ee")
+    parser.add_argument("--terminal-on-loss", type=bool, default=True,
+        help="should agent terminate when losing a life")
     args = parser.parse_args()
     # fmt: on
 
@@ -376,9 +380,11 @@ def closest_partition(s: torch.Tensor, repr_states: torch.Tensor, distance_func:
 
     return repr_states[min_index], min_index, partition_distances[min_index]
 
-def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
+def linear_schedule(start_e: float, end_e: float, duration: int, t: int, start: int = 0):
+    if t < start or start == -1:
+        return start_e
     slope = (end_e - start_e) / duration
-    return max(slope * t + start_e, end_e)
+    return max(slope * (t - start) + start_e, end_e)
 
 
 if __name__ == "__main__":
@@ -457,6 +463,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     distance_from_partition = 0
     partition_add_threshold = args.partition_delta
     time_since_reward = 0
+    q_learning_started = -1
+    last_life = 99999999
     
     # Variables for plotting purposes
     episodic_return = 0
@@ -465,7 +473,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     for global_step in range(args.total_timesteps):
 
         # ALGO LOGIC: put action logic here
-        epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step)
+        epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step, q_learning_started)
         if random.random() < epsilon or time_since_reward > 500:
             q_values = torch.ones((env.action_space.n, )) / env.action_space.n
             actions = env.action_space.sample()
@@ -478,7 +486,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         aux_reward = calculate_aux_reward(q_values, actions).cpu()
         
         # TRY NOT TO MODIFY: execute the game and log data.
-        next_obs, rewards, terminations, truncations, infos = env.step(actions)
+        next_obs, rewards, terminations, truncations, info = env.step(actions)
+
+        if args.terminal_on_loss:
+            life = info['lives']
 
         # Determin the current partition
         # Update the set of visited partitions
@@ -499,7 +510,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
         real_next_obs = next_obs[-1].copy()
         if truncations:
-            real_next_obs = infos["final_observation"]
+            real_next_obs = info["final_observation"]
 
         # Add to replay buffer if we've discovered a new partition
         new_partition = visited_partitions_next.difference(visited_partitions)
@@ -508,7 +519,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         else:
             new_partition = new_partition.pop()
             
-        rb.add(obs, real_next_obs, actions, rewards, terminations, aux_reward, new_partition, infos)
+        rb.add(obs, real_next_obs, actions, rewards, terminations, aux_reward, new_partition, info)
 
         # Adding new partition logic
         time_to_partition += 1
@@ -523,14 +534,15 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             time_to_partition = 0
 
             writer.add_scalar("partitions/no_of_partitions", partitions.shape[0], global_step)
-
+            
         # On epsiode termination
-        if terminations:
+        if terminations or (args.terminal_on_loss and life < last_life):
             # Reset epsisode variables
             distance_from_partition=0
             time_since_reward = 0
             visited_partitions_next = set()
             next_obs, _ = env.reset()
+            last_life = 999999
 
             # Plotting
             intrinsic_reward = torch.gather(visitation_counts, 0, torch.LongTensor(list(visited_partitions)).to(device))
@@ -550,7 +562,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             # Update visitation count
             for partition_index in visited_partitions:
                 visitation_counts[partition_index] += 1
-            
+        
         # UPDATING PLOTTING VARIABLES
         episodic_return += rewards
         episodic_length += 1
@@ -559,8 +571,14 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         obs = next_obs
         visited_partitions = visited_partitions_next
 
+        if args.terminal_on_loss:
+            last_life = life
+
         # ALGO LOGIC: training Q.
         if partitions.shape[0] > args.learning_starts:
+            if q_learning_started == -1:
+                q_learning_started = global_step
+                
             if global_step % args.train_frequency == 0:
                 data = rb.sample(args.batch_size)
                 
@@ -607,7 +625,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 pred = ee.network(input)
                 target_onestep = data.first_aux_rewards + args.gamma * pred
                 target_mc = data.discounted_aux_rewards
-                target = (1 - args.eta) * target_onestep + args.eta * target_mc
+
+                delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
+
+                target = (1 - args.eta) * target_onestep + args.eta * delta_mc
                 loss = F.mse_loss(target, pred)
 
                 if global_step % 100 == 0:
