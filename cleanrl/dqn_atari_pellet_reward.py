@@ -551,7 +551,9 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             writer.add_scalar("rewards/intrinsic_reward", intrinsic_reward, global_step)
             writer.add_scalar("rewards/episodic_return", episodic_return, global_step)
             writer.add_scalar("rewards/total_reward", episodic_return + intrinsic_reward, global_step)
-            writer.add_scalar("charts/no_visited_partitions", len(visited_partitions), global_step)
+            writer.add_scalar("partitions/no_visited_partitions", len(visited_partitions), global_step)
+            writeable_visitation = {f'{i}': v for i, v in enumerate(visitation_counts.cpu().numpy())}
+            writer.add_scalars("partitions/visitation_counts", writeable_visitation, global_step)
             writer.add_scalar("charts/episodic_length", episodic_length, global_step)
             writer.add_scalar("charts/epsilon", epsilon, global_step)
 
