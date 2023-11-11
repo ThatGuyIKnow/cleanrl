@@ -233,6 +233,8 @@ def parse_args():
         help="the fraction of `total-timesteps` it takes from start-e to go end-e")
     parser.add_argument("--learning-starts", type=int, default=5,
         help="partitions to start learning")
+    parser.add_argument("--ee-train-starts", type=int, default=80000,
+        help="partitions to start learning ee")
     parser.add_argument("--train-frequency", type=int, default=4,
         help="the frequency of training")
     parser.add_argument("--partition-delta", type=int, default=80000,
@@ -509,9 +511,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
         real_next_obs = next_obs[-1].copy()
-        if truncations:
-            real_next_obs = info["final_observation"]
-
+        
         # Add to replay buffer if we've discovered a new partition
         new_partition = visited_partitions_next.difference(visited_partitions)
         if len(new_partition) == 0:
@@ -575,7 +575,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             last_life = life
 
         # ALGO LOGIC: training Q.
-        if partitions.shape[0] > args.learning_starts:
+        if partitions.shape[0] >= args.learning_starts:
             if q_learning_started == -1:
                 q_learning_started = global_step
                 
@@ -617,29 +617,30 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                     )
                 
         # ALGO LOGIC: training EE.
-        if global_step % args.train_frequency == 0:
-            data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
-            if data is not None:
-                input = torch.stack([data.observations, data.future_observations], dim=1)
-                
-                pred = ee.network(input)
-                target_onestep = data.first_aux_rewards + args.gamma * pred
-                target_mc = data.discounted_aux_rewards
+        if global_step > args.ee_train_starts:
+            if global_step % args.train_frequency == 0:
+                data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
+                if data is not None:
+                    input = torch.stack([data.observations, data.future_observations], dim=1)
+                    
+                    pred = ee.network(input)
+                    target_onestep = data.first_aux_rewards + args.gamma * pred
+                    target_mc = data.discounted_aux_rewards
 
-                delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
+                    delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
 
-                target = (1 - args.eta) * target_onestep + args.eta * delta_mc
-                loss = F.mse_loss(target, pred)
+                    target = (1 - args.eta) * target_onestep + args.eta * delta_mc
+                    loss = F.mse_loss(target, pred)
 
-                if global_step % 100 == 0:
-                    writer.add_scalar("ee_losses/ee_loss", loss, global_step)
-                    writer.add_scalar("ee_losses/ee_distance_predicted", euclidian_distance(target_onestep).mean().item(), global_step)
-                    writer.add_scalar("ee_losses/ee_distance", euclidian_distance(target_mc).mean().item(), global_step)
+                    if global_step % 100 == 0:
+                        writer.add_scalar("ee_losses/ee_loss", loss, global_step)
+                        writer.add_scalar("ee_losses/ee_distance_predicted", euclidian_distance(target_onestep).mean().item(), global_step)
+                        writer.add_scalar("ee_losses/ee_distance", euclidian_distance(target_mc).mean().item(), global_step)
 
-                # optimize the model
-                ee.optimizer.zero_grad()
-                loss.backward()
-                ee.optimizer.step()
+                    # optimize the model
+                    ee.optimizer.zero_grad()
+                    loss.backward()
+                    ee.optimizer.step()
 
 
     if args.save_model:
