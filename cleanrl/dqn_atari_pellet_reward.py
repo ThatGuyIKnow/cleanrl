@@ -182,6 +182,19 @@ class PelletReplayBuffer(ReplayBuffer):
         return EEReplayBufferSamples(*tuple(map(self.to_torch, data)))
 
 
+class RecordVideoWandb(gym.wrappers.RecordVideo):
+    """This wrapper records videos of rollouts. 
+    It is based on the gymnasium RecordVideo wrapper.
+    In addition, it will send the video the wandb if initialized.
+    """
+
+    def close_video_recorder(self):
+        """Closes the video recorder if currently recording."""
+        super().close_video_recorder()
+        if self.recording and wandb.run is not None:
+            wandb.Video(self.video_recorder.path)
+
+
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
@@ -201,6 +214,10 @@ def parse_args():
         help="the entity (team) of wandb's project")
     parser.add_argument("--capture-video", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="whether to capture videos of the agent performances (check out `videos` folder)")
+    parser.add_argument("--capture-video-length", type=int, default=500, nargs="?", const=True,
+        help="the length of the capture video")
+    parser.add_argument("--capture-video-step", type=int, default=1e5, nargs="?", const=True,
+        help="how often to capture video")
     parser.add_argument("--save-model", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="whether to save model into the `runs/{run_name}` folder")
     parser.add_argument("--upload-model", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
@@ -259,7 +276,7 @@ def make_env(env_id, seed, idx, capture_video, run_name):
     def thunk():
         if capture_video and idx == 0:
             env = gym.make(env_id, render_mode="rgb_array")
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+            env = RecordVideoWandb(env, f"videos/{run_name}", step_trigger=lambda x: (x % args.capture_video_step) == 0, video_length=args.capture_video_length)
         else:
             env = gym.make(env_id)
         env = gym.wrappers.RecordEpisodeStatistics(env)
@@ -552,10 +569,16 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             writer.add_scalar("rewards/episodic_return", episodic_return, global_step)
             writer.add_scalar("rewards/total_reward", episodic_return + intrinsic_reward, global_step)
             writer.add_scalar("partitions/no_visited_partitions", len(visited_partitions), global_step)
-            writeable_visitation = {f'{i}': v for i, v in enumerate(visitation_counts.cpu().numpy())}
-            writer.add_scalars("partitions/visitation_counts", writeable_visitation, global_step)
+
             writer.add_scalar("charts/episodic_length", episodic_length, global_step)
             writer.add_scalar("charts/epsilon", epsilon, global_step)
+
+            writeable_visitations = visitation_counts.cpu().numpy()
+            for i, count in enumerate(writeable_visitations):
+                writer.add_scalar(f"visitation_counts/partition_{i}", count, global_step=global_step)
+
+
+
 
             # Reset plotting variables
             episodic_return = 0
@@ -598,7 +621,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                     td_target = rewards + args.gamma * target_max * (1 - data.dones.flatten())
                     
                 old_val = q.network(data.observations).gather(1, data.actions).squeeze()
-                loss = F.mse_loss(td_target, old_val)
+                loss = F.smooth_l1_loss(td_target, old_val)
 
                 if global_step % 100 == 0:
                     writer.add_scalar("q_losses/td_loss", loss, global_step)
