@@ -452,7 +452,6 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             name=run_name,
             monitor_gym=True,
             save_code=True,
-            dir=f"../wandb/{run_name}"
         )
     writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text(
