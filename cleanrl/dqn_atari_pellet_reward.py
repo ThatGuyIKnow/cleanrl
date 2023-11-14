@@ -216,7 +216,7 @@ def parse_args():
         help="whether to capture videos of the agent performances (check out `videos` folder)")
     parser.add_argument("--capture-video-length", type=int, default=500, nargs="?", const=True,
         help="the length of the capture video")
-    parser.add_argument("--capture-video-step", type=int, default=1e5, nargs="?", const=True,
+    parser.add_argument("--capture-video-step", type=int, default=1e6, nargs="?", const=True,
         help="how often to capture video")
     parser.add_argument("--save-model", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="whether to save model into the `runs/{run_name}` folder")
@@ -250,7 +250,7 @@ def parse_args():
         help="the fraction of `total-timesteps` it takes from start-e to go end-e")
     parser.add_argument("--learning-starts", type=int, default=5,
         help="partitions to start learning")
-    parser.add_argument("--ee-train-starts", type=int, default=80000,
+    parser.add_argument("--ee-learning-starts", type=int, default=8*1e6,
         help="partitions to start learning ee")
     parser.add_argument("--train-frequency", type=int, default=4,
         help="the frequency of training")
@@ -317,25 +317,48 @@ class QNetwork(nn.Module):
     def forward(self, x):
         return self.network(x / 255.0)
 
+# class QNetworkPellet(nn.Module):
+#     def __init__(self, env):
+#         super().__init__()
+#         self.conv = nn.Sequential(
+#             nn.Conv2d(4, 32, 8, stride=4),
+#             nn.ReLU(),
+#             nn.Conv2d(32, 64, 4, stride=2),
+#             nn.ReLU(),
+#             nn.Conv2d(64, 64, 3, stride=1),
+#             nn.ReLU(),
+#             nn.Flatten(),
+#         )
+
+#         self.ffn = nn.Sequential(
+#             nn.Linear(3136 + 1, 512),
+#             nn.ReLU(),
+#             nn.Linear(512, env.action_space.n),
+#         )
+
+#     def forward(self, x, pellet_value):
+#         x = self.conv(x / 255.0)
+#         return self.ffn(torch.cat([x, pellet_value]))
+
 
 class EENetwork(nn.Module):
     def __init__(self, env: gym.Env):
         super().__init__()
         self.prong = nn.Sequential(
             # nn.Flatten(1, 2),
-            nn.Conv2d(1, 32, 8, stride=4),
+            nn.Conv2d(1, 16, 8, stride=4),
             nn.ReLU(),
-            nn.Conv2d(32, 64, 4, stride=2),
+            nn.Conv2d(16, 16, 4, stride=2),
             nn.ReLU(),
-            nn.Conv2d(64, 64, 3, stride=1),
+            nn.Conv2d(16, 16, 3, stride=1),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(3136, 512),
-            nn.ReLU(),
         )
 
         self.body = nn.Sequential(
-            nn.Linear(2 * 512, env.action_space.n),
+            nn.Linear(784, 128),
+            nn.ReLU(),
+            nn.Linear(128, env.action_space.n),
         )
 
     def forward(self, x):
@@ -344,7 +367,7 @@ class EENetwork(nn.Module):
         x1 = self.prong(x1)
         x2 = self.prong(x2)
 
-        x = self.body(torch.concat((x1, x2), dim=1))
+        x = self.body(torch.sub(x1, x2))
 
         return x
 
@@ -429,6 +452,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             name=run_name,
             monitor_gym=True,
             save_code=True,
+            dir=f"../wandb/{run_name}"
         )
     writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text(
@@ -484,13 +508,13 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     time_since_reward = 0
     q_learning_started = -1
     last_life = 99999999
+    epsiode = 0
     
     # Variables for plotting purposes
     episodic_return = 0
     episodic_length = 0
 
     for global_step in range(args.total_timesteps):
-
         # ALGO LOGIC: put action logic here
         epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step, q_learning_started)
         if random.random() < epsilon or time_since_reward > 500:
@@ -571,18 +595,17 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             writer.add_scalar("partitions/no_visited_partitions", len(visited_partitions), global_step)
 
             writer.add_scalar("charts/episodic_length", episodic_length, global_step)
+            writer.add_scalar("charts/epsiode", epsiode, global_step)
             writer.add_scalar("charts/epsilon", epsilon, global_step)
 
             writeable_visitations = visitation_counts.cpu().numpy()
             for i, count in enumerate(writeable_visitations):
                 writer.add_scalar(f"visitation_counts/partition_{i}", count, global_step=global_step)
 
-
-
-
             # Reset plotting variables
             episodic_return = 0
             episodic_length = 0
+            epsiode += 1
 
             # Update visitation count
             for partition_index in visited_partitions:
@@ -606,7 +629,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 
             if global_step % args.train_frequency == 0:
                 data = rb.sample(args.batch_size)
-                
+
                 with torch.no_grad():
                     target_max, _ = q.target_network(data.next_observations).max(dim=1)
                     rewards = data.rewards.flatten()
@@ -642,7 +665,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                     )
                 
         # ALGO LOGIC: training EE.
-        if global_step > args.ee_train_starts:
+        if global_step > args.ee_learning_starts:
             if global_step % args.train_frequency == 0:
                 data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
                 if data is not None:
