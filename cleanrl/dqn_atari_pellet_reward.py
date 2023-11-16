@@ -249,9 +249,9 @@ def parse_args():
     parser.add_argument("--exploration-fraction", type=float, default=0.10,
         help="the fraction of `total-timesteps` it takes from start-e to go end-e")
     parser.add_argument("--learning-starts", type=int, default=5,
-        help="partitions to start learning")
-    parser.add_argument("--ee-learning-starts", type=int, default=8*1e6,
-        help="partitions to start learning ee")
+        help="partitions to start learning q")
+    parser.add_argument("--partition-starts", type=int, default=8*1e6,
+        help="steps to start partitioning")
     parser.add_argument("--train-frequency", type=int, default=4,
         help="the frequency of training")
     parser.add_argument("--partition-delta", type=int, default=80000,
@@ -508,75 +508,106 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     q_learning_started = -1
     last_life = 99999999
     epsiode = 0
-    
+    epsilon = args.start_e
+
     # Variables for plotting purposes
     episodic_return = 0
     episodic_length = 0
 
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
-        epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step, q_learning_started)
-        if random.random() < epsilon or time_since_reward > 500:
+        if global_step <= args.partition_starts:
+            # ==============================
+            # PRETRAINING OF THE EE FUNCTION
+            # ==============================
             q_values = torch.ones((env.action_space.n, )) / env.action_space.n
-            actions = env.action_space.sample()
-        else:
-            with torch.no_grad():
-                q_values = q.network(torch.Tensor(np.array(obs)).to(device).unsqueeze(dim=0))[0]
-                actions = torch.argmax(q_values).cpu().numpy()   
+            actions = env.action_space.sample() 
 
-        # Calculate Auxilary Reward of EE
-        aux_reward = calculate_aux_reward(q_values, actions).cpu()
-        
-        # TRY NOT TO MODIFY: execute the game and log data.
-        next_obs, rewards, terminations, truncations, info = env.step(actions)
-
-        if args.terminal_on_loss:
-            life = info['lives']
-
-        # Determin the current partition
-        # Update the set of visited partitions
-        curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee.network)
-        visited_partitions_next = visited_partitions.copy().union([index.item(), ])
-
-        if rewards and index in visited_partitions:
-            time_since_reward += 1
-        else:
-            time_since_reward = 0
-
-        # Update the best candidate to the distance measure
-        if partition_distance > distance_from_partition:
-            next_partition = next_obs[-1].copy()
-            distance_from_partition = partition_distance
+            # Calculate Auxilary Reward of EE
+            aux_reward = calculate_aux_reward(q_values, actions).cpu()
+            
+            # TRY NOT TO MODIFY: execute the game and log data.
+            next_obs, rewards, terminated, truncated, info = env.step(actions)
 
 
-        # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
-        real_next_obs = next_obs[-1].copy()
-        
-        # Add to replay buffer if we've discovered a new partition
-        new_partition = visited_partitions_next.difference(visited_partitions)
-        if len(new_partition) == 0:
+            # Determin the current partition
+            # Update the set of visited partitions
+            partition_distance = 0
+            index = -1
+            visited_partitions_next = set()
+
+            # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
+            real_next_obs = next_obs[-1].copy()
+            
+            # Don't care about partitions in this step
             new_partition = -1
         else:
-            new_partition = new_partition.pop()
-            
-        rb.add(obs, real_next_obs, actions, rewards, terminations, aux_reward, new_partition, info)
+            # ============================================
+            # AFTER PRETRAINING OF THE EE FUNCTION IS DONE
+            # ============================================
+            epsilon = linear_schedule(args.start_e, args.end_e, args.exploration_fraction * args.total_timesteps, global_step, q_learning_started)
+            if random.random() < epsilon or time_since_reward > 500:
+                q_values = torch.ones((env.action_space.n, )) / env.action_space.n
+                actions = env.action_space.sample()
+            else:
+                with torch.no_grad():
+                    q_values = q.network(torch.Tensor(np.array(obs)).to(device).unsqueeze(dim=0))[0]
+                    actions = torch.argmax(q_values).cpu().numpy()   
 
+            # Calculate Auxilary Reward of EE
+            aux_reward = calculate_aux_reward(q_values, actions).cpu()
+            
+            # TRY NOT TO MODIFY: execute the game and log data.
+            next_obs, rewards, terminated, truncations, info = env.step(actions)
+
+            # Determin the current partition
+            # Update the set of visited partitions
+            curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee.network)
+            visited_partitions_next = visited_partitions.copy().union([index.item(), ])
+
+            if rewards and index in visited_partitions:
+                time_since_reward += 1
+            else:
+                time_since_reward = 0
+
+            # Update the best candidate to the distance measure
+            if partition_distance > distance_from_partition:
+                next_partition = next_obs[-1].copy()
+                distance_from_partition = partition_distance
+
+
+            # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
+            real_next_obs = next_obs[-1].copy()
+            
+            # Add to replay buffer if we've discovered a new partition
+            new_partition = visited_partitions_next.difference(visited_partitions)
+            if len(new_partition) == 0:
+                new_partition = -1
+            else:
+                new_partition = new_partition.pop()
+
+            
+        if args.terminal_on_loss:
+            life = info['lives']
+                
+        rb.add(obs, real_next_obs, actions, rewards, terminated, aux_reward, new_partition, info)
         # Adding new partition logic
-        time_to_partition += 1
-        if time_to_partition > partition_add_threshold:
-            new_partition = np.expand_dims(next_partition, axis=0)
-            new_partition = torch.Tensor(new_partition).to(device)
-            
-            partitions = torch.cat([partitions, new_partition])
-            visitation_counts = torch.cat([visitation_counts, torch.zeros((1,), device=device)])
-            partition_add_threshold *= args.partition_time_multiplier
-            distance_from_partition = 0
-            time_to_partition = 0
+        if global_step > args.partition_starts:
+            time_to_partition += 1
+            if time_to_partition > partition_add_threshold:
+                new_partition = np.expand_dims(next_partition, axis=0)
+                new_partition = torch.Tensor(new_partition).to(device)
+                
+                partitions = torch.cat([partitions, new_partition])
+                visitation_counts = torch.cat([visitation_counts, torch.zeros((1,), device=device)])
+                partition_add_threshold *= args.partition_time_multiplier
+                distance_from_partition = 0
+                time_to_partition = 0
 
-            writer.add_scalar("partitions/no_of_partitions", partitions.shape[0], global_step)
-            
+                writer.add_scalar("partitions/no_of_partitions", partitions.shape[0], global_step)
+
         # On epsiode termination
-        if terminations or (args.terminal_on_loss and life < last_life):
+        if truncated or terminated or (args.terminal_on_loss and life < last_life):
             # Reset epsisode variables
             distance_from_partition=0
             time_since_reward = 0
@@ -664,30 +695,30 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                     )
                 
         # ALGO LOGIC: training EE.
-        if global_step > args.ee_learning_starts:
-            if global_step % args.train_frequency == 0:
-                data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
-                if data is not None:
-                    input = torch.stack([data.observations, data.future_observations], dim=1)
-                    
-                    pred = ee.network(input)
-                    target_onestep = data.first_aux_rewards + args.gamma * pred
-                    target_mc = data.discounted_aux_rewards
+        if global_step % args.train_frequency == 0:
+            data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
+            if data is not None:
+                input = torch.stack([data.observations, data.future_observations], dim=1)
+                
+                pred = ee.network(input)
+                target_onestep = data.first_aux_rewards + args.gamma * pred
+                target_mc = data.discounted_aux_rewards
 
-                    delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
+                delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
 
-                    target = (1 - args.eta) * target_onestep + args.eta * delta_mc
-                    loss = F.mse_loss(target, pred)
+                target = (1 - args.eta) * target_onestep + args.eta * delta_mc
+                loss = F.mse_loss(target, pred)
 
-                    if global_step % 100 == 0:
-                        writer.add_scalar("ee_losses/ee_loss", loss, global_step)
-                        writer.add_scalar("ee_losses/ee_distance_predicted", euclidian_distance(target_onestep).mean().item(), global_step)
-                        writer.add_scalar("ee_losses/ee_distance", euclidian_distance(target_mc).mean().item(), global_step)
+                if global_step % 100 == 0:
+                    print(f"Training EE. Loss: {loss}")
+                    writer.add_scalar("ee_losses/ee_loss", loss, global_step)
+                    writer.add_scalar("ee_losses/ee_distance_predicted", euclidian_distance(target_onestep).mean().item(), global_step)
+                    writer.add_scalar("ee_losses/ee_distance", euclidian_distance(target_mc).mean().item(), global_step)
 
-                    # optimize the model
-                    ee.optimizer.zero_grad()
-                    loss.backward()
-                    ee.optimizer.step()
+                # optimize the model
+                ee.optimizer.zero_grad()
+                loss.backward()
+                ee.optimizer.step()
 
 
     if args.save_model:
