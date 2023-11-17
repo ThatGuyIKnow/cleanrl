@@ -1,0 +1,5 @@
+# Test Experiment
+poetry run python cleanrl/dqn_atari_pellet_reward.py --env-id BreakoutNoFrameskip-v4 --buffer-size=1000 --partition-delta=1000 --learning-starts=4 --total-timesteps=1000000 --learning-starts=2 --exploration-fraction=1000 --partition-starts=1000
+
+# Train Experiment
+poetry run python cleanrl/dqn_atari_pellet_reward.py --env-id ALE/MontezumaRevenge-v5 --buffer-size=70000 --batch-size=128

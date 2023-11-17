@@ -224,6 +224,10 @@ def parse_args():
         help="whether to upload the saved model to huggingface")
     parser.add_argument("--hf-entity", type=str, default="",
         help="the user or org name of the model repository from the Hugging Face Hub")
+    parser.add_argument("--checkpoint-ee", type=int, default=None, nargs="?", const=True,
+        help="whether to save checkpoints of EE model into the `runs/{run_name}/EE/` folder")
+    parser.add_argument("--checkpoint-q", type=int, default=None, nargs="?", const=True,
+        help="whether to save checkpoints of Q model into the `runs/{run_name}/Q/` folder")
 
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="BreakoutNoFrameskip-v4",
@@ -459,6 +463,12 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
+    # Setup run directory
+    if args.checkpoint_q is not None:
+        os.mkdir(f"runs/{run_name}/Q")
+    if args.checkpoint_ee is not None:
+        os.mkdir(f"runs/{run_name}/EE")
+
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -653,8 +663,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             last_life = life
 
         # ALGO LOGIC: training Q.
-        if partitions.shape[0] >= args.learning_starts:
-            if q_learning_started == -1:
+        if global_step > args.partition_starts:
+            if q_learning_started == -1 and partitions.shape[0] >= args.learning_starts:
                 q_learning_started = global_step
                 
             if global_step % args.train_frequency == 0:
@@ -694,6 +704,14 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                         args.tau * q_network_param.data + (1.0 - args.tau) * target_network_param.data
                     )
                 
+            if args.checkpoint_q is not None and global_step % args.checkpoint_q == 0:
+                model_path = f"runs/{run_name}/Q/{global_step}_{args.exp_name}.cleanrl_model"
+                torch.save(q.network.state_dict(), model_path)
+                if args.track:
+                    wandb.save(model_path, policy="now")
+                print(f"Q model saved to {model_path}")
+
+
         # ALGO LOGIC: training EE.
         if global_step % args.train_frequency == 0:
             data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
@@ -720,6 +738,12 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 loss.backward()
                 ee.optimizer.step()
 
+                if args.checkpoint_ee is not None and global_step % args.checkpoint_ee == 0:
+                    model_path = f"runs/{run_name}/EE/{global_step}_{args.exp_name}.cleanrl_model"
+                    torch.save(ee.network.state_dict(), model_path)
+                    if args.track:
+                        wandb.save(model_path, policy="now")
+                    print(f"EE model saved to {model_path}")
 
     if args.save_model:
         model_path = f"runs/{run_name}/{args.exp_name}.cleanrl_model"
