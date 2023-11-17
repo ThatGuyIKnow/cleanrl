@@ -414,19 +414,20 @@ def distance(s1: torch.Tensor, s2: torch.Tensor, repr_states: torch.Tensor, dist
 
     return torch.max(euclidian_distance(t1 - t2), euclidian_distance(t3 - t4))
 
-def closest_partition(s: torch.Tensor, repr_states: torch.Tensor, distance_func: Callable[[torch.Tensor], torch.Tensor]):
-    s = torch.Tensor(s[-1]).to(device)
-    s = torch.Tensor(s).to(device)
-    
+def closest_partition(s: np.array, repr_states: torch.Tensor, distance_func: Callable[[torch.Tensor], torch.Tensor]):
+    # Get the distances of all partitions
     with torch.no_grad():
-        distances = list([distance(s, s_hat, repr_states, distance_func).max() for s_hat in repr_states])
+        state = torch.Tensor(s[-1]).to(device)
+        distances = list([distance(state, s_hat, repr_states, distance_func).max() for s_hat in repr_states])
 
+    # Find the closest partition
     partition_distances = torch.stack(distances)
     min_index = partition_distances.argmin()
 
     return repr_states[min_index], min_index, partition_distances[min_index]
 
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int, start: int = 0):
+    # Evaluate if the starting step has NOT been reached OR if we decided not to run
     if t < start or start == -1:
         return start_e
     slope = (end_e - start_e) / duration
