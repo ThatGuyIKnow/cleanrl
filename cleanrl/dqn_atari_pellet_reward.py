@@ -537,7 +537,6 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
             # Calculate Auxilary Reward of EE
             aux_reward = calculate_aux_reward(q_values, actions).cpu()
-            print(aux_reward.sum())
             
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminated, truncated, info = env.step(actions)
