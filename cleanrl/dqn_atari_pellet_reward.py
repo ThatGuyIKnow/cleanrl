@@ -86,7 +86,7 @@ class PelletReplayBuffer(ReplayBuffer):
 
     def _get_samples(self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
         # Sample randomly the env idx
-        env_indices = 0
+        env_indices = np.random.randint(0, high=self.n_envs, size=(len(batch_inds),))
 
         if self.optimize_memory_usage:
             next_obs = self._normalize_obs(self.observations[(batch_inds + 1) % self.buffer_size, env_indices, :], env)
@@ -274,7 +274,6 @@ def make_env(env_id, seed, idx, capture_video, run_name):
 
     return thunk
 
-
 # ALGO LOGIC: initialize agent here:
 class QNetwork(nn.Module):
     def __init__(self, env):
@@ -358,48 +357,46 @@ def calculate_aux_reward(q_values: torch.Tensor, action: int):
 
     return aux_reward
 
-def euclidian_distance(s: torch.Tensor):
+def magnitude_vector(s: torch.Tensor):
     return s.pow(2).sum(dim=1).sqrt()
 
 
-def distance(s1: torch.Tensor, s2: torch.Tensor, repr_states: torch.Tensor, distance_func: Callable[[torch.Tensor], torch.Tensor]):
+def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network):
     N = len(repr_states)
-    tile_shape = [N, ] + [1, ] * (len(repr_states.shape) - 1)
+    repeat_shape = [1, ] * (len(repr_states.shape) - 2)
 
-    s1_tile = torch.tile(torch.unsqueeze(s1, dim=0), tile_shape)
-    s2_tile = torch.tile(torch.unsqueeze(s2, dim=0), tile_shape)
+    z1 = ee.network.prong((s1 / 255).view(1, 1, *s1.shape))
+    z2 = ee.network.prong(torch.unsqueeze((repr_states / 255), dim=1))
+    # Repeat Repr. States => N*[s1] + N*[s2] + N*[s3] + N*[s4] + ... => [s1,s1,s1,s1, ..., s2,s2,s2, ...]
+    ref_point = z2.repeat_interleave(N, dim=0)
+    # Repeat Repr. States => [s1, s2, s3, s4, ...] * N => [s1, s2, s3, s4, ..., s1, s2, ...]
+    s_hat = z2.repeat([N, ] + repeat_shape)
+    # Repeat State of interest => [s] * N^2 => [s, s, s, s, ...]
+    s = z1.repeat([N**2, ] + repeat_shape)
 
-    s_hat = torch.unsqueeze(repr_states, dim=1)
-    s1_tile = torch.unsqueeze(s1_tile, dim=1)
-    s2_tile = torch.unsqueeze(s2_tile, dim=1)
-    
-    # s_hat & s1
-    t1 = torch.concat([s_hat, s1_tile], dim=1)   
-    # s_hat & s2
-    t2 = torch.concat([s_hat, s2_tile], dim=1)
-    # s1 & s_hat
-    t3 = torch.concat([s1_tile, s_hat], dim=1)
-    # s2 & s_hat
-    t4 = torch.concat([s2_tile, s_hat], dim=1)
+    # print([x.shape for x in [ref_point, ref_point, s, s_hat]])
+    x1 = torch.cat([ref_point, ref_point, s, s_hat], dim=1).view((-1, *s.shape[1:]))
+    x2 = torch.cat([s, s_hat, ref_point, ref_point], dim=1).view((-1, *s.shape[1:]))
 
-    samples = torch.concat([t1, t2, t3, t4], dim=0)
-    distances = distance_func(samples)
+    distances = ee.network.body(torch.sub(x1, x2))
 
-    t1, t2, t3, t4 = torch.split(distances, split_size_or_sections=N, dim=0)
+    d1 = magnitude_vector(distances[0::4] - distances[1::4])
+    d2 = magnitude_vector(distances[2::4] - distances[3::4])
 
-    return torch.max(euclidian_distance(t1 - t2), euclidian_distance(t3 - t4))
+    d, _ = torch.cat([d1, d2], dim=0).view(-1, 2*N).max(dim=1)
+    return d
 
-def closest_partition(s: np.array, repr_states: torch.Tensor, distance_func: Callable[[torch.Tensor], torch.Tensor]):
+
+def closest_partition(s: np.array, repr_states: torch.Tensor, ee: Network):
     # Get the distances of all partitions
     with torch.no_grad():
         state = torch.Tensor(s[-1]).to(device)
-        distances = list([distance(state, s_hat, repr_states, distance_func).max() for s_hat in repr_states])
+        distances = distance(state, repr_states, ee)
 
     # Find the closest partition
-    partition_distances = torch.stack(distances)
-    min_index = partition_distances.argmin()
+    min_index = distances.argmin()
 
-    return repr_states[min_index], min_index, partition_distances[min_index]
+    return repr_states[min_index], min_index, distances[min_index]
 
 def linear_schedule(start_e: float, end_e: float, duration: int, t: int, start: int = 0):
     # Evaluate if the starting step has NOT been reached OR if we decided not to run
@@ -421,12 +418,13 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         )
     args = parse_args()
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+
     if args.track:
         import wandb
 
         wandb.init(
             project=args.wandb_project_name,
-            entity=args.wandb_entity,
+            entity=args.wandb_entity,   
             sync_tensorboard=True,
             config=vars(args),
             name=run_name,
@@ -458,6 +456,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     
     assert isinstance(env.action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
+    # Initialize networks
     q_network = QNetwork(env).to(device)
     q_optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
     q_target_network = QNetwork(env).to(device)
@@ -548,7 +547,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
             # Determin the current partition
             # Update the set of visited partitions
-            curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee.network)
+            curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee)
             visited_partitions_next = visited_partitions.copy().union([index.item(), ])
 
             if rewards and index in visited_partitions:
@@ -706,8 +705,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 if global_step % 100 == 0:
                     print(f"Training EE. Loss: {loss}")
                     writer.add_scalar("ee_losses/ee_loss", loss, global_step)
-                    writer.add_scalar("ee_losses/ee_distance_predicted", euclidian_distance(target_onestep).mean().item(), global_step)
-                    writer.add_scalar("ee_losses/ee_distance", euclidian_distance(target_mc).mean().item(), global_step)
+                    writer.add_scalar("ee_losses/ee_distance_predicted", magnitude_vector(target_onestep).mean().item(), global_step)
+                    writer.add_scalar("ee_losses/ee_distance", magnitude_vector(target_mc).mean().item(), global_step)
 
                 # optimize the model
                 ee.optimizer.zero_grad()
