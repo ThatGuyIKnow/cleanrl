@@ -27,7 +27,6 @@ from stable_baselines3.common.type_aliases import (
 )
 
 from torch.utils.tensorboard import SummaryWriter
-from collections import namedtuple, defaultdict
 
 # Network = namedtuple('Network', ['network', 'optimizer', 'target_network'])
 class Network(NamedTuple):
@@ -77,42 +76,17 @@ class PelletReplayBuffer(ReplayBuffer):
         aux_reward: np.ndarray,
         new_partition: np.ndarray,
         infos: List[Dict[str, Any]],
-    ) -> None:
-        # Reshape needed when using multiple envs with discrete observations
-        # as numpy cannot broadcast (n_discrete,) to (n_discrete, 1)
-        if isinstance(self.observation_space, spaces.Discrete):
-            obs = obs.reshape((self.n_envs, *self.obs_shape))
-            next_obs = next_obs.reshape((self.n_envs, *self.obs_shape))
+    ) -> None:        
+        super().add(obs, next_obs, action, reward, done, infos)
 
-        # Reshape to handle multi-dim and discrete action spaces, see GH #970 #1392
-        action = action.reshape((self.n_envs, self.action_dim))
-
-        # Copy to avoid modification by reference
-        self.observations[self.pos] = np.array(obs).copy()
-
-        if self.optimize_memory_usage:
-            self.observations[(self.pos + 1) % self.buffer_size] = np.array(next_obs).copy()
-        else:
-            self.next_observations[self.pos] = np.array(next_obs).copy()
-            
-        self.actions[self.pos] = np.array(action).copy()
-        self.rewards[self.pos] = np.array(reward).copy()
-        self.dones[self.pos] = np.array(done).copy()
         self.aux_rewards[self.pos] = np.array(aux_reward).copy()
         self.new_partition[self.pos] = np.array(new_partition).copy()
 
-        if self.handle_timeout_termination:
-            self.timeouts[self.pos] = np.array([info.get("TimeLimit.truncated", False) for info in infos])
-
-        self.pos += 1
-        if self.pos == self.buffer_size:
-            self.full = True
-            self.pos = 0
 
 
     def _get_samples(self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
         # Sample randomly the env idx
-        env_indices = np.random.randint(0, high=self.n_envs, size=(len(batch_inds),))
+        env_indices = 0
 
         if self.optimize_memory_usage:
             next_obs = self._normalize_obs(self.observations[(batch_inds + 1) % self.buffer_size, env_indices, :], env)
