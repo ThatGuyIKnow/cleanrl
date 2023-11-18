@@ -376,8 +376,9 @@ class EENetwork(nn.Module):
         return x
 
 def calculate_aux_reward(q_values: torch.Tensor, action: int):
-    aux_reward = (q_values.clone() + q_values.min())
-    aux_reward = -aux_reward / aux_reward.norm()
+    aux_reward = q_values.clone()
+    mag = aux_reward.abs().sum()
+    aux_reward = - (aux_reward / mag) + aux_reward.min()
 
     aux_reward[action].add(1)
 
@@ -536,6 +537,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
             # Calculate Auxilary Reward of EE
             aux_reward = calculate_aux_reward(q_values, actions).cpu()
+            print(aux_reward.sum())
             
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminated, truncated, info = env.step(actions)
