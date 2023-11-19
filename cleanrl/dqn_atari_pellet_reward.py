@@ -202,7 +202,9 @@ def parse_args():
         help="whether to save checkpoints of EE model into the `runs/{run_name}/EE/` folder")
     parser.add_argument("--checkpoint-q", type=int, default=None, nargs="?", const=True,
         help="whether to save checkpoints of Q model into the `runs/{run_name}/Q/` folder")
-
+    parser.add_argument("--pretrained-ee", type=str, default=None,
+        help="path to use a pretrained EE")
+    
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="BreakoutNoFrameskip-v4",
         help="the id of the environment")
@@ -464,6 +466,11 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     q = Network(q_network, q_optimizer, q_target_network)
 
     ee_network = EENetwork(env).to(device)
+
+    if args.pretrained_ee is not None:
+        checkpoint = torch.load(args.pretrained_ee)
+        ee_network.load_state_dict(checkpoint)
+        
     ee_optimizer = optim.Adam(ee_network.parameters(), lr=args.learning_rate)
     ee_target_network = EENetwork(env).to(device)
     ee_target_network.load_state_dict(ee_network.state_dict())
@@ -499,7 +506,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     episodic_return = 0
     episodic_length = 0
 
-    for global_step in range(args.total_timesteps):
+    for global_step in range(2*1e6, args.total_timesteps):
         # ALGO LOGIC: put action logic here
         if global_step <= args.partition_starts:
             # ==============================
