@@ -506,7 +506,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     episodic_return = 0
     episodic_length = 0
 
-    for global_step in range(2*1e6, args.total_timesteps):
+    for global_step in range(2000000, args.total_timesteps):
         # ALGO LOGIC: put action logic here
         if global_step <= args.partition_starts:
             # ==============================
@@ -688,7 +688,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 
             if args.checkpoint_q is not None and global_step % args.checkpoint_q == 0:
                 model_path = f"runs/{run_name}/Q/{global_step}_{args.exp_name}.cleanrl_model"
-                torch.save(q.network.state_dict(), model_path)
+                torch.save({
+                    'model_state_dict': q.network.state_dict(),
+                    'global_step': global_step
+                    }, model_path)
                 if args.track:
                     wandb.save(model_path, policy="now")
                 print(f"Q model saved to {model_path}")
@@ -722,7 +725,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
                 if args.checkpoint_ee is not None and global_step % args.checkpoint_ee == 0:
                     model_path = f"runs/{run_name}/EE/{global_step}_{args.exp_name}.cleanrl_model"
-                    torch.save(ee.network.state_dict(), model_path)
+                    torch.save({
+                    'model_state_dict': ee.network.state_dict(),
+                    'global_step': global_step
+                    }, model_path)
                     if args.track:
                         wandb.save(model_path, policy="now")
                     print(f"EE model saved to {model_path}")
