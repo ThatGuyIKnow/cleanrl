@@ -376,7 +376,6 @@ def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network):
     # Repeat State of interest => [s] * N^2 => [s, s, s, s, ...]
     s = z1.repeat([N**2, ] + repeat_shape)
 
-    # print([x.shape for x in [ref_point, ref_point, s, s_hat]])
     x1 = torch.cat([ref_point, ref_point, s, s_hat], dim=1).view((-1, *s.shape[1:]))
     x2 = torch.cat([s, s_hat, ref_point, ref_point], dim=1).view((-1, *s.shape[1:]))
 
@@ -638,7 +637,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         # UPDATING PLOTTING VARIABLES
         episodic_return += rewards
         episodic_length += 1
-        print(visited_partitions, visited_partitions_next)
+
         # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
         visited_partitions = visited_partitions_next
