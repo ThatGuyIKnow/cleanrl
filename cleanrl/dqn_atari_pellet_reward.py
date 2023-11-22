@@ -351,11 +351,11 @@ class EENetwork(nn.Module):
         return x
 
 def calculate_aux_reward(q_values: torch.Tensor, action: int):
-    aux_reward = q_values.clone()
+    aux_reward = q_values.clone() + q_values.min()
     mag = aux_reward.abs().sum()
-    aux_reward = - (aux_reward / mag) + aux_reward.min()
+    aux_reward = - (aux_reward / mag) 
 
-    aux_reward[action].add(1)
+    aux_reward[action] += 1
 
     return aux_reward
 
