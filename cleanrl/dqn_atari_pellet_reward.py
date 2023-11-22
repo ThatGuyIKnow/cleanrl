@@ -351,10 +351,10 @@ class EENetwork(nn.Module):
         return x
 
 def calculate_aux_reward(q_values: torch.Tensor, action: int):
-    aux_reward = q_values.clone() + q_values.min()
-    mag = aux_reward.abs().sum()
-    aux_reward = - (aux_reward / mag) 
-
+    # aux_reward = q_values.clone() + q_values.min()
+    # mag = aux_reward.abs().sum()
+    # aux_reward = - (aux_reward / mag) 
+    aux_reward = -torch.nn.functional.softmax(q_values.clone())
     aux_reward[action] += 1
 
     return aux_reward
@@ -522,8 +522,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             next_obs, rewards, terminated, truncated, info = env.step(actions)
 
 
-            # Determin the current partition
-            # Update the set of visited partitions
+            # We don't partition yet, so every state is considered closest to the inital partition
             partition_distance = 0
             index = -1
             visited_partitions_next = set()
