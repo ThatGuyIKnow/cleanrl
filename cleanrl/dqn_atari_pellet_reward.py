@@ -230,7 +230,7 @@ def parse_args():
         help="the fraction of `total-timesteps` it takes from start-e to go end-e")
     parser.add_argument("--learning-starts", type=int, default=5,
         help="partitions to start learning q")
-    parser.add_argument("--partition-starts", type=int, default=8*1e6,
+    parser.add_argument("--partition-starts", type=int, default=2*1e6,
         help="steps to start partitioning")
     parser.add_argument("--train-frequency", type=int, default=4,
         help="the frequency of training")
@@ -466,10 +466,11 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     q = Network(q_network, q_optimizer, q_target_network)
 
     ee_network = EENetwork(env).to(device)
-
+    init_global_step = 0
     if args.pretrained_ee is not None:
         checkpoint = torch.load(args.pretrained_ee)
-        ee_network.load_state_dict(checkpoint)
+        ee_network.load_state_dict(checkpoint['model_state_dict'])
+        init_global_step = checkpoint['global_step']
         
     ee_optimizer = optim.Adam(ee_network.parameters(), lr=args.learning_rate)
     ee_target_network = EENetwork(env).to(device)
@@ -506,7 +507,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     episodic_return = 0
     episodic_length = 0
 
-    for global_step in range(2000000, args.total_timesteps):
+    for global_step in range(init_global_step, args.total_timesteps):
         # ALGO LOGIC: put action logic here
         if global_step <= args.partition_starts:
             # ==============================
@@ -557,10 +558,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee)
             visited_partitions_next = visited_partitions.copy().union([index.item(), ])
 
-            if rewards and index in visited_partitions:
-                time_since_reward += 1
-            else:
+            if rewards or index not in visited_partitions:
                 time_since_reward = 0
+            else:
+                time_since_reward += 1
 
             # Update the best candidate to the distance measure
             if partition_distance > distance_from_partition:
@@ -671,8 +672,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 if global_step % 100 == 0:
                     writer.add_scalar("q_losses/td_loss", loss, global_step)
                     writer.add_scalar("q_losses/q_values", old_val.mean().item(), global_step)
-                    print("SPS:", int((global_step - 2000000) / (time.time() - start_time)))
-                    writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
+                    print("SPS:", int((global_step - init_global_step) / (time.time() - start_time)))
+                    writer.add_scalar("charts/SPS", int((global_step - init_global_step) / (time.time() - start_time)), global_step)
 
                 # optimize the model
                 q.optimizer.zero_grad()
