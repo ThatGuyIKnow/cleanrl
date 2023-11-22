@@ -551,14 +551,15 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             aux_reward = calculate_aux_reward(q_values, actions).cpu()
             
             # TRY NOT TO MODIFY: execute the game and log data.
-            next_obs, rewards, terminated, truncations, info = env.step(actions)
+            next_obs, rewards, terminated, truncated, info = env.step(actions)
 
             # Determin the current partition
             # Update the set of visited partitions
             curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee)
             visited_partitions_next = visited_partitions.copy().union([index.item(), ])
 
-            if rewards or index not in visited_partitions:
+            # Count steps
+            if rewards or index.item() not in visited_partitions:
                 time_since_reward = 0
             else:
                 time_since_reward += 1
@@ -637,7 +638,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         # UPDATING PLOTTING VARIABLES
         episodic_return += rewards
         episodic_length += 1
-
+        print(visited_partitions, visited_partitions_next)
         # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
         visited_partitions = visited_partitions_next
