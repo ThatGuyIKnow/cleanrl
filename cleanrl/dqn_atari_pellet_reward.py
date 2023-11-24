@@ -210,7 +210,7 @@ def parse_args():
         help="the id of the environment")
     parser.add_argument("--total-timesteps", type=int, default=10000000,
         help="total timesteps of the experiments")
-    parser.add_argument("--learning-rate", type=float, default=1e-4,
+    parser.add_argument("--learning-rate", type=float, default=0.00025,
         help="the learning rate of the optimizer")
     parser.add_argument("--buffer-size", type=int, default=1000000,
         help="the replay memory buffer size")
@@ -232,6 +232,10 @@ def parse_args():
         help="partitions to start learning q")
     parser.add_argument("--partition-starts", type=int, default=2*1e6,
         help="steps to start partitioning")
+    parser.add_argument("--ee-learning-ends", type=int, default=2*1e6,
+        help="steps to start partitioning")
+    parser.add_argument("--visit-rate-decay", type=float, default=0.99,
+        help="decay for the avg rate of visitation")
     parser.add_argument("--train-frequency", type=int, default=4,
         help="the frequency of training")
     parser.add_argument("--partition-delta", type=int, default=80000,
@@ -351,9 +355,7 @@ class EENetwork(nn.Module):
         return x
 
 def calculate_aux_reward(q_values: torch.Tensor, action: int):
-    # aux_reward = q_values.clone() + q_values.min()
-    # mag = aux_reward.abs().sum()
-    # aux_reward = - (aux_reward / mag) 
+    
     aux_reward = -torch.nn.functional.softmax(q_values.clone())
     aux_reward[action] += 1
 
@@ -362,13 +364,14 @@ def calculate_aux_reward(q_values: torch.Tensor, action: int):
 def magnitude_vector(s: torch.Tensor):
     return s.pow(2).sum(dim=1).sqrt()
 
-
 def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network):
     N = len(repr_states)
     repeat_shape = [1, ] * (len(repr_states.shape) - 2)
 
+    # Transform the state and representative states
     z1 = ee.network.prong((s1 / 255).view(1, 1, *s1.shape))
     z2 = ee.network.prong(torch.unsqueeze((repr_states / 255), dim=1))
+
     # Repeat Repr. States => N*[s1] + N*[s2] + N*[s3] + N*[s4] + ... => [s1,s1,s1,s1, ..., s2,s2,s2, ...]
     ref_point = z2.repeat_interleave(N, dim=0)
     # Repeat Repr. States => [s1, s2, s3, s4, ...] * N => [s1, s2, s3, s4, ..., s1, s2, ...]
@@ -376,14 +379,26 @@ def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network):
     # Repeat State of interest => [s] * N^2 => [s, s, s, s, ...]
     s = z1.repeat([N**2, ] + repeat_shape)
 
+    # Organises the tensor as:
+    # s^hat  - s
+    # s^hat  - s'
+    # s      - s^hat
+    # s'     - s^hat
+    # (And so on repeating...)
     x1 = torch.cat([ref_point, ref_point, s, s_hat], dim=1).view((-1, *s.shape[1:]))
     x2 = torch.cat([s, s_hat, ref_point, ref_point], dim=1).view((-1, *s.shape[1:]))
+    # We subtract as the network subs the two transformed states
+    x = torch.sub(x1, x2)
 
-    distances = ee.network.body(torch.sub(x1, x2))
+    # Predict distances between states
+    distances = ee.network.body(x)
 
+    # ||E(s^hat, s) - E(s^hat, s')||
     d1 = magnitude_vector(distances[0::4] - distances[1::4])
+    # ||E(s, s^hat) - E(s', s^hat)||
     d2 = magnitude_vector(distances[2::4] - distances[3::4])
 
+    # max(||E(s^hat, s) - E(s^hat, s')||, ||E(s, s^hat) - E(s', s^hat)||)
     d, _ = torch.cat([d1, d2], dim=0).view(-1, 2*N).max(dim=1)
     return d
 
@@ -406,6 +421,10 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int, start: 
     slope = (end_e - start_e) / duration
     return max(slope * (t - start) + start_e, end_e)
 
+def indicator_tensor(indices, shape):
+    tensor = torch.zeros(shape)
+    tensor.view(-1)[indices] = 1
+    return tensor
 
 if __name__ == "__main__":
     import stable_baselines3 as sb3
@@ -489,13 +508,16 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
     # TRY NOT TO MODIFY: start the game
     obs, _ = env.reset(seed=args.seed)
+    # Partitions
     empty_partition = torch.Tensor(env.observation_space.sample()[-1, :, :] * 0)
     partitions = torch.unsqueeze(torch.Tensor(obs[-1]), dim=0).to(device)
     time_to_partition = 0
     visited_partitions = set()
     visitation_counts = torch.zeros((1,)).to(device)
+    avg_visitation_rate = torch.zeros((1,)).to(device)
     distance_from_partition = 0
     partition_add_threshold = args.partition_delta
+
     time_since_reward = 0
     q_learning_started = -1
     last_life = 99999999
@@ -545,7 +567,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                     q_values = q.network(torch.Tensor(np.array(obs)).to(device).unsqueeze(dim=0))[0]
                     actions = torch.argmax(q_values).cpu().numpy()   
 
-            # Calculate Auxilary Reward of EE
+            # Calculate Auxilary Reward 
             aux_reward = calculate_aux_reward(q_values, actions).cpu()
             
             # TRY NOT TO MODIFY: execute the game and log data.
@@ -592,6 +614,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 
                 partitions = torch.cat([partitions, new_partition])
                 visitation_counts = torch.cat([visitation_counts, torch.zeros((1,), device=device)])
+                avg_visitation_rate = torch.cat([avg_visitation_rate, torch.zeros((1,), device=device)])
                 partition_add_threshold *= args.partition_time_multiplier
                 distance_from_partition = 0
                 time_to_partition = 0
@@ -607,9 +630,17 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             next_obs, _ = env.reset()
             last_life = 999999
 
-            # Plotting
-            intrinsic_reward = torch.gather(visitation_counts, 0, torch.LongTensor(list(visited_partitions)).to(device))
+            # Update visitation count
+            for partition_index in visited_partitions:
+                visitation_counts[partition_index] += 1
+        
+            # Intrinsic 
+            visited = indicator_tensor(list(visited_partitions), len(visitation_counts)).to(device)
+            avg_visitation_rate = avg_visitation_rate * args.visit_rate_decay + (1 - args.visit_rate_decay) * visited
+            intrinsic_reward = avg_visitation_rate * visited
             intrinsic_reward = (args.beta / intrinsic_reward.sqrt()).sum().item()
+
+            # Plotting
             print(f"global_step={global_step}, episodic_return={episodic_return}")
             writer.add_scalar("rewards/intrinsic_reward", intrinsic_reward, global_step)
             writer.add_scalar("rewards/episodic_return", episodic_return, global_step)
@@ -629,10 +660,6 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             episodic_length = 0
             epsiode += 1
 
-            # Update visitation count
-            for partition_index in visited_partitions:
-                visitation_counts[partition_index] += 1
-        
         # UPDATING PLOTTING VARIABLES
         episodic_return += rewards
         episodic_length += 1
@@ -698,7 +725,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
 
         # ALGO LOGIC: training EE.
-        if global_step % args.train_frequency == 0:
+        if global_step < args.ee_learning_ends and global_step % args.train_frequency == 0:
             data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
             if data is not None:
                 input = torch.stack([data.observations, data.future_observations], dim=1)
