@@ -512,16 +512,16 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     empty_partition = torch.Tensor(env.observation_space.sample()[-1, :, :] * 0)
     partitions = torch.unsqueeze(torch.Tensor(obs[-1]), dim=0).to(device)
     time_to_partition = 0
-    visited_partitions = set()
-    visitation_counts = torch.zeros((1,)).to(device)
-    avg_visitation_rate = torch.zeros((1,)).to(device)
+    visited_partitions = set([0])
+    visitation_counts = torch.ones((1,)).to(device)
+    avg_visitation_rate = torch.ones((1,)).to(device)
     distance_from_partition = 0
     partition_add_threshold = args.partition_delta
 
     time_since_reward = 0
     q_learning_started = -1
     last_life = 99999999
-    epsiode = 0
+    episode = 0
     epsilon = args.start_e
 
     # Variables for plotting purposes
@@ -547,7 +547,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             # We don't partition yet, so every state is considered closest to the inital partition
             partition_distance = 0
             index = -1
-            visited_partitions_next = set()
+            visited_partitions_next = set([0])
 
             # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
             real_next_obs = next_obs[-1].copy()
@@ -613,8 +613,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 new_partition = torch.Tensor(new_partition).to(device)
                 
                 partitions = torch.cat([partitions, new_partition])
-                visitation_counts = torch.cat([visitation_counts, torch.zeros((1,), device=device)])
-                avg_visitation_rate = torch.cat([avg_visitation_rate, torch.zeros((1,), device=device)])
+                visitation_counts = torch.cat([visitation_counts, torch.ones((1,), device=device)])
+                avg_visitation_rate = torch.cat([avg_visitation_rate, torch.ones((1,), device=device)])
                 partition_add_threshold *= args.partition_time_multiplier
                 distance_from_partition = 0
                 time_to_partition = 0
@@ -626,7 +626,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             # Reset epsisode variables
             distance_from_partition=0
             time_since_reward = 0
-            visited_partitions_next = set()
+            visited_partitions_next = set([0])
             next_obs, _ = env.reset()
             last_life = 999999
 
@@ -635,11 +635,11 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 visitation_counts[partition_index] += 1
         
             # Intrinsic 
-            visited = indicator_tensor(list(visited_partitions), len(visitation_counts)).to(device)
+            visited = indicator_tensor(visited_partitions, len(visitation_counts)).to(device)
             avg_visitation_rate = avg_visitation_rate * args.visit_rate_decay + (1 - args.visit_rate_decay) * visited
-            intrinsic_reward = avg_visitation_rate * visited
-            intrinsic_reward = (args.beta / intrinsic_reward.sqrt()).sum().item()
-
+            intrinsic_reward =  (args.beta / (episode * avg_visitation_rate).sqrt()) * visited
+            intrinsic_reward = torch.nan_to_num(intrinsic_reward).sum().item()
+            
             # Plotting
             print(f"global_step={global_step}, episodic_return={episodic_return}")
             writer.add_scalar("rewards/intrinsic_reward", intrinsic_reward, global_step)
@@ -648,7 +648,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             writer.add_scalar("partitions/no_visited_partitions", len(visited_partitions), global_step)
 
             writer.add_scalar("charts/episodic_length", episodic_length, global_step)
-            writer.add_scalar("charts/epsiode", epsiode, global_step)
+            writer.add_scalar("charts/epsiode", episode, global_step)
             writer.add_scalar("charts/epsilon", epsilon, global_step)
 
             writeable_visitations = visitation_counts.cpu().numpy()
@@ -658,7 +658,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             # Reset plotting variables
             episodic_return = 0
             episodic_length = 0
-            epsiode += 1
+            episode += 1
 
         # UPDATING PLOTTING VARIABLES
         episodic_return += rewards
