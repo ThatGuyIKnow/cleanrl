@@ -635,7 +635,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 visitation_counts[partition_index] += 1
         
             # Intrinsic 
-            visited = indicator_tensor(visited_partitions, len(visitation_counts)).to(device)
+            visited = indicator_tensor(list(visited_partitions), len(visitation_counts)).to(device)
             avg_visitation_rate = avg_visitation_rate * args.visit_rate_decay + (1 - args.visit_rate_decay) * visited
             intrinsic_reward =  (args.beta / (episode * avg_visitation_rate).sqrt()) * visited
             intrinsic_reward = torch.nan_to_num(intrinsic_reward).sum().item()
