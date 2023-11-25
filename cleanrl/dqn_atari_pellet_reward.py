@@ -1,5 +1,6 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/dqn/#dqn_ataripy
 import argparse
+from collections import defaultdict
 import os
 import random
 import time
@@ -27,6 +28,10 @@ from stable_baselines3.common.type_aliases import (
 )
 
 from torch.utils.tensorboard import SummaryWriter
+from dataclasses import dataclass
+
+from memory_profiler import profile
+import gc 
 
 # Network = namedtuple('Network', ['network', 'optimizer', 'target_network'])
 class Network(NamedTuple):
@@ -41,15 +46,85 @@ class ReplayBufferSamples(NamedTuple):
     dones: torch.Tensor
     rewards: torch.Tensor
     aux_rewards: torch.Tensor
-    new_partition: torch.Tensor
+    mc_rewards: torch.Tensor
 
 class EEReplayBufferSamples(NamedTuple):
     observations: torch.Tensor
     future_observations: torch.Tensor
-    first_aux_rewards: torch.Tensor
-    discounted_aux_rewards: torch.Tensor
+    aux_reward: torch.Tensor
+    mc_aux_reward: torch.Tensor
+    visited_partitions: torch.Tensor
 
+class Episode:
+    def __init__(self) -> None:
+        self.length: int = 0
+        self.observations: List[torch.Tensor] = []
+        self.actions: List[torch.Tensor] = []
+        self.dones: List[torch.Tensor] = []
+        self.rewards: List[torch.Tensor] = []
+        self.intrinsic_rewards: List[torch.Tensor] = []
+        self.aux_rewards: List[torch.Tensor] = []
+        self.new_partitions: Dict[int, int] = defaultdict()
+        self.visited_partitions: torch.Tensor = torch.zeros((args.max_partitions,))
 
+    def add(self, 
+            obs: torch.Tensor, 
+            action: torch.Tensor, 
+            next_obs: torch.Tensor,
+            done: bool, 
+            reward: float, 
+            aux_reward: float, 
+            new_partition: int,
+            episode: int,
+            avg_visitation_rate: torch.Tensor):
+        self.length += 1
+        self.observations.append(obs)
+        self.actions.append(action)
+        self.dones.append(done)
+        self.rewards.append(reward)
+        self.aux_rewards.append(aux_reward)
+        self.new_partitions[self.length] = new_partition
+
+        if new_partition is not None and new_partition >= 0:
+            self.visited_partitions[new_partition] = 1
+        
+        if done:
+            self.observations.append(next_obs)
+
+        if new_partition is not None:
+            rate = avg_visitation_rate[new_partition]
+            intrinsic_reward = (args.beta / (episode * rate).sqrt()).to('cpu')
+        else:
+            intrinsic_reward = 0
+
+        self.intrinsic_rewards.append(intrinsic_reward)
+        
+    def get_visitation_tensor(self, length):
+        return indicator_tensor(self.new_partitions.values(), length)
+
+    def get_mc_target(self):
+        targets = []
+        mc_reward = 0
+        mc_intrinsic = 0
+        for index in range(len(self.rewards)-1, -1, -1):
+            reward = self.rewards[index]
+            intrinsic_reward = self.intrinsic_rewards[index]
+            mc_reward = reward + mc_reward * args.gamma
+            mc_intrinsic = intrinsic_reward + mc_intrinsic * args.gamma
+            targets.insert(0, mc_reward + mc_intrinsic)
+        return targets
+    
+    def get_mc_aux_target(self):
+        mc_aux = self.aux_rewards[-1]
+        targets = [mc_aux]
+        for aux in reversed(self.aux_rewards[:-1]):
+            targets.insert(0, aux + mc_aux * args.gamma)
+        return targets
+    
+    # def delete(self):
+    #     del self.observations
+    #     gc.collect()
+        
 class PelletReplayBuffer(ReplayBuffer):
     def __init__(
         self,
@@ -63,9 +138,13 @@ class PelletReplayBuffer(ReplayBuffer):
     ):
         super().__init__(buffer_size, observation_space, action_space, device, n_envs, optimize_memory_usage, handle_timeout_termination)
 
+        self.remainding_steps = np.zeros((self.buffer_size, self.n_envs), dtype=np.int64)
         self.aux_rewards = np.zeros((self.buffer_size, self.n_envs, self.action_space.n), dtype=action_space.dtype)
-        self.new_partition = np.zeros((self.buffer_size, self.n_envs), dtype=np.int64)
-
+        self.mc_aux_rewards = np.zeros((self.buffer_size, self.n_envs, self.action_space.n), dtype=action_space.dtype)
+        self.intrinsic_rewards = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
+        self.mc_rewards = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
+        self.visited_partitions = np.zeros((self.buffer_size, self.n_envs, args.max_partitions), dtype=action_space.dtype)
+        
     def add(
         self,
         obs: np.ndarray,
@@ -74,14 +153,41 @@ class PelletReplayBuffer(ReplayBuffer):
         reward: np.ndarray,
         done: np.ndarray,
         aux_reward: np.ndarray,
-        new_partition: np.ndarray,
+        mc_aux_reward: np.ndarray,
+        intrinsic_reward: np.ndarray,
+        mc_reward: np.ndarray,
+        remainding_steps: int,
+        visited_partitions: np.ndarray,
         infos: List[Dict[str, Any]],
-    ) -> None:        
-        super().add(obs, next_obs, action, reward, done, infos)
+    ) -> None:
 
+        self.remainding_steps[self.pos] = remainding_steps
         self.aux_rewards[self.pos] = np.array(aux_reward).copy()
-        self.new_partition[self.pos] = np.array(new_partition).copy()
-
+        self.mc_aux_rewards[self.pos] = np.array(mc_aux_reward).copy()
+        self.intrinsic_rewards[self.pos] = np.array(intrinsic_reward).copy()
+        self.mc_rewards[self.pos] = np.array(mc_reward).copy()
+        self.visited_partitions[self.pos] = np.array(visited_partitions).copy()
+        super().add(obs, next_obs, action, reward, done, infos)
+        
+        
+    def add_episode(self, episode: Episode) -> None:
+        mc = episode.get_mc_target()
+        aux_mc = episode.get_mc_aux_target()
+        for index in range(episode.length - 1):
+            self.add(
+                episode.observations[index],
+                episode.observations[index+1],
+                episode.actions[index],
+                episode.rewards[index],
+                episode.dones[index],
+                episode.aux_rewards[index],
+                aux_mc[index],
+                episode.intrinsic_rewards[index],
+                mc[index],
+                episode.length - index,
+                episode.visited_partitions,
+                {}
+            )
 
 
     def _get_samples(self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
@@ -102,56 +208,48 @@ class PelletReplayBuffer(ReplayBuffer):
             (self.dones[batch_inds, env_indices] * (1 - self.timeouts[batch_inds, env_indices])).reshape(-1, 1),
             self._normalize_reward(self.rewards[batch_inds, env_indices].reshape(-1, 1), env),
             self.aux_rewards[batch_inds, env_indices],
-            self.new_partition[batch_inds, env_indices],
+            self.mc_rewards[batch_inds, env_indices],
         )
         return ReplayBufferSamples(*tuple(map(self.to_torch, data)))
 
 
     def sample_state_pairs(self, batch_size: int) -> Optional[EEReplayBufferSamples]:
         if self.full:
-            batch_inds = (np.random.randint(1, self.buffer_size, size=batch_size) + self.pos) % self.buffer_size
+            eps_start = (np.random.randint(1, self.buffer_size, size=batch_size) + self.pos) % self.buffer_size
         else:
-            batch_inds = np.random.randint(0, self.pos, size=batch_size)
-       
-        eps_starts = []
-        eps_ends = []
-        aux_rewards = []
-        aux_rewards_index = []
-        size = self.size()
-        for index in batch_inds:
-            if self.dones[index] or self.pos == (index):
-                continue
-
-            for offset in range(1, size):
-                arr_index = (index + offset) % size
-                if self.dones[arr_index] or self.pos == (arr_index) or offset+1 == size:
-                    end_offset = np.random.randint(1, offset + 2)
-                    end_index = (end_offset + index) % self.buffer_size
-
-                    if offset == 1:
-                        aux = torch.ones((self.action_space.n, )) / self.action_space.n
-                    else:
-                        aux = np.take(self.aux_rewards[:, 0], range(index, index + end_offset), axis=0, mode='wrap')
-                        gammas = args.gamma**np.arange(end_offset)
-                        # Vector-Matrix multiplication + Sum
-                        aux = torch.Tensor(np.einsum('i,ik', gammas, aux))
-
-                    aux_rewards_index.append(index)
-                    eps_starts.append((index + 1) % size)
-                    aux_rewards.append(aux)
-                    eps_ends.append(end_index)
-                    break
+            eps_start = np.random.randint(0, self.pos, size=batch_size)
         
-        if len(eps_starts) == 0:
+        batch_inds = []
+        end_batch_inds = []
+        for index in eps_start:
+            if self.pos < index:
+                limit = self.pos + (self.buffer_size - index)
+            else:
+                limit = self.pos - index
+            if limit <= 1:
+                break
+
+            max_offset = min(self.remainding_steps[index, 0], limit)
+            end_offset = np.random.randint(1, max_offset)
+            end_index = (end_offset + index) % self.buffer_size
+
+            batch_inds.append(index)
+            end_batch_inds.append(end_index)
+
+        batch_inds = np.array(batch_inds, dtype=np.int32)
+        end_batch_inds = np.array(end_batch_inds, dtype=np.int32)
+
+        if len(obs) == 0:
             return None
         
-        env_indices = np.zeros((len(eps_starts), ), dtype=np.int64)
+        env_indices = np.zeros((len(batch_inds), ), dtype=np.int64)
         
         data = (
-            self.observations[eps_starts, env_indices, -1, :],
-            self.observations[eps_ends, env_indices, -1, :],
-            self.aux_rewards[aux_rewards_index, env_indices],
-            torch.stack(aux_rewards)
+            self.observations[batch_inds, env_indices, -1, :],
+            self.observations[end_batch_inds, env_indices, -1, :],
+            self.aux_rewards[batch_inds, env_indices],
+            self.mc_aux_rewards[batch_inds, env_indices],
+            self.visited_partitions[batch_inds, env_indices]
         )
         return EEReplayBufferSamples(*tuple(map(self.to_torch, data)))
 
@@ -232,8 +330,10 @@ def parse_args():
         help="partitions to start learning q")
     parser.add_argument("--partition-starts", type=int, default=2*1e6,
         help="steps to start partitioning")
+    parser.add_argument("--ee-learning-starts", type=int, default=70000,
+        help="steps to stop learning ee")
     parser.add_argument("--ee-learning-ends", type=int, default=2*1e6,
-        help="steps to start partitioning")
+        help="steps to stop learning ee")
     parser.add_argument("--visit-rate-decay", type=float, default=0.99,
         help="decay for the avg rate of visitation")
     parser.add_argument("--train-frequency", type=int, default=4,
@@ -242,9 +342,13 @@ def parse_args():
         help="the frequency of partitioning")
     parser.add_argument("--partition-time-multiplier", type=float, default=1.2,
         help="the increase in partitioning frequency")
+    parser.add_argument("--max-partitions", type=int, default=20,
+        help="maximum number of partitions")
     parser.add_argument("--beta", type=float, default=1,
         help="constant bonus factor for pellets")
-    parser.add_argument("--eta", type=float, default=0.1,
+    parser.add_argument("--eta-q", type=float, default=0.1,
+        help="monte carlo mixing factor for ee")
+    parser.add_argument("--eta-ee", type=float, default=0.1,
         help="monte carlo mixing factor for ee")
     parser.add_argument("--mc_clip", type=float, default=0.5,
         help="monte carlo clipping factor for ee")
@@ -299,30 +403,7 @@ class QNetwork(nn.Module):
 
     def forward(self, x):
         return self.network(x / 255.0)
-
-# class QNetworkPellet(nn.Module):
-#     def __init__(self, env):
-#         super().__init__()
-#         self.conv = nn.Sequential(
-#             nn.Conv2d(4, 32, 8, stride=4),
-#             nn.ReLU(),
-#             nn.Conv2d(32, 64, 4, stride=2),
-#             nn.ReLU(),
-#             nn.Conv2d(64, 64, 3, stride=1),
-#             nn.ReLU(),
-#             nn.Flatten(),
-#         )
-
-#         self.ffn = nn.Sequential(
-#             nn.Linear(3136 + 1, 512),
-#             nn.ReLU(),
-#             nn.Linear(512, env.action_space.n),
-#         )
-
-#     def forward(self, x, pellet_value):
-#         x = self.conv(x / 255.0)
-#         return self.ffn(torch.cat([x, pellet_value]))
-
+    
 
 class EENetwork(nn.Module):
     def __init__(self, env: gym.Env):
@@ -339,18 +420,20 @@ class EENetwork(nn.Module):
         )
 
         self.body = nn.Sequential(
-            nn.Linear(784, 128),
+            nn.Linear(784 + args.max_partitions, 128),
             nn.ReLU(),
             nn.Linear(128, env.action_space.n),
         )
 
-    def forward(self, x):
+    def forward(self, x, visited_partitions):
+        # partition = indicator_tensor(visited_partitions, (args.max_partitions,))
         x1, x2 = torch.split(x / 255.0, split_size_or_sections=1, dim=1)
 
         x1 = self.prong(x1)
         x2 = self.prong(x2)
-
-        x = self.body(torch.sub(x1, x2))
+        x = torch.sub(x1, x2)
+        x = torch.concat([x, visited_partitions], dim = 1)
+        x = self.body(x)
 
         return x
 
@@ -364,7 +447,7 @@ def calculate_aux_reward(q_values: torch.Tensor, action: int):
 def magnitude_vector(s: torch.Tensor):
     return s.pow(2).sum(dim=1).sqrt()
 
-def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network):
+def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network, visited_partitions: torch.Tensor):
     N = len(repr_states)
     repeat_shape = [1, ] * (len(repr_states.shape) - 2)
 
@@ -390,6 +473,10 @@ def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network):
     # We subtract as the network subs the two transformed states
     x = torch.sub(x1, x2)
 
+    # Append visited_states
+    partition = visited_partitions.repeat([x.shape[0], ] + repeat_shape).to(device)
+    x = torch.concat([x, partition], dim = 1)
+
     # Predict distances between states
     distances = ee.network.body(x)
 
@@ -403,11 +490,11 @@ def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network):
     return d
 
 
-def closest_partition(s: np.array, repr_states: torch.Tensor, ee: Network):
+def closest_partition(s: np.array, repr_states: torch.Tensor, ee: Network, visited_partitions: torch.Tensor):
     # Get the distances of all partitions
     with torch.no_grad():
         state = torch.Tensor(s[-1]).to(device)
-        distances = distance(state, repr_states, ee)
+        distances = distance(state, repr_states, ee, visited_partitions)
 
     # Find the closest partition
     min_index = distances.argmin()
@@ -491,9 +578,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         init_global_step = checkpoint['global_step']
         
     ee_optimizer = optim.Adam(ee_network.parameters(), lr=args.learning_rate)
-    ee_target_network = EENetwork(env).to(device)
-    ee_target_network.load_state_dict(ee_network.state_dict())
-    ee = Network(ee_network, ee_optimizer, ee_target_network)
+    ee = Network(ee_network, ee_optimizer, None)
 
 
     rb = PelletReplayBuffer(
@@ -525,9 +610,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     epsilon = args.start_e
 
     # Variables for plotting purposes
+
     episodic_return = 0
     episodic_length = 0
-
+    episode_samples = Episode()
     for global_step in range(init_global_step, args.total_timesteps):
         # ALGO LOGIC: put action logic here
         if global_step <= args.partition_starts:
@@ -542,7 +628,6 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminated, truncated, info = env.step(actions)
-
 
             # We don't partition yet, so every state is considered closest to the inital partition
             partition_distance = 0
@@ -575,7 +660,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
             # Determin the current partition
             # Update the set of visited partitions
-            curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee)
+            p = indicator_tensor(list(visited_partitions), args.max_partitions)
+            curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee, p)
             visited_partitions_next = visited_partitions.copy().union([index.item(), ])
 
             # Count steps
@@ -604,9 +690,11 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         if args.terminal_on_loss:
             life = info['lives']
                 
-        rb.add(obs, real_next_obs, actions, rewards, terminated, aux_reward, new_partition, info)
+        # rb.add(obs, real_next_obs, actions, rewards, terminated, aux_reward, new_partition, info)
+        episode_samples.add(obs, actions, real_next_obs, terminated, rewards, aux_reward, new_partition, episode, avg_visitation_rate)
+        
         # Adding new partition logic
-        if global_step > args.partition_starts:
+        if global_step > args.partition_starts and partitions.shape[0] < args.max_partitions:
             time_to_partition += 1
             if time_to_partition > partition_add_threshold:
                 new_partition = np.expand_dims(next_partition, axis=0)
@@ -624,7 +712,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         # On epsiode termination
         if truncated or terminated or (args.terminal_on_loss and life < last_life):
             # Reset epsisode variables
-            distance_from_partition=0
+            rb.add_episode(episode_samples)
+            # episode_samples.delete()
+            episode_samples = Episode()
+            distance_from_partition = 0
             time_since_reward = 0
             visited_partitions_next = set([0])
             next_obs, _ = env.reset()
@@ -640,6 +731,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             intrinsic_reward =  (args.beta / (episode * avg_visitation_rate).sqrt()) * visited
             intrinsic_reward = torch.nan_to_num(intrinsic_reward).sum().item()
             
+            print("SPS:", int((global_step - init_global_step) / (time.time() - start_time)))
+            writer.add_scalar("charts/SPS", int((global_step - init_global_step) / (time.time() - start_time)), global_step)
+            start_time = time.time()
+            init_global_step = global_step
             # Plotting
             print(f"global_step={global_step}, episodic_return={episodic_return}")
             writer.add_scalar("rewards/intrinsic_reward", intrinsic_reward, global_step)
@@ -681,26 +776,19 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
                 with torch.no_grad():
                     target_max, _ = q.target_network(data.next_observations).max(dim=1)
-                    rewards = data.rewards.flatten()
-                    
-                    # Adding intrinsic reward
-                    temp_visitation_counts = torch.cat([torch.zeros((1,), device=device), visitation_counts])
-                    visitations = torch.gather(temp_visitation_counts, 0, data.new_partition + 1)
-                    mask = (visitations != 0)
-                    
-                    rewards[mask] += args.beta / torch.sqrt(visitations[mask])
+                
+                target = data.rewards + args.gamma * target_max * (1 - data.dones.flatten())
 
-                    td_target = rewards + args.gamma * target_max * (1 - data.dones.flatten())
+                td_target = (1 - args.eta_q) * target + args.eta_q * data.mc_rewards
+                td_target = data.rewards + args.gamma * target_max * (1 - data.dones.flatten())
                     
                 old_val = q.network(data.observations).gather(1, data.actions).squeeze()
-                loss = F.smooth_l1_loss(td_target, old_val)
+                loss = F.huber_loss(td_target, old_val)
 
                 if global_step % 100 == 0:
                     writer.add_scalar("q_losses/td_loss", loss, global_step)
                     writer.add_scalar("q_losses/q_values", old_val.mean().item(), global_step)
-                    print("SPS:", int((global_step - init_global_step) / (time.time() - start_time)))
-                    writer.add_scalar("charts/SPS", int((global_step - init_global_step) / (time.time() - start_time)), global_step)
-
+                    
                 # optimize the model
                 q.optimizer.zero_grad()
                 loss.backward()
@@ -725,19 +813,21 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
 
         # ALGO LOGIC: training EE.
-        if global_step < args.ee_learning_ends and global_step % args.train_frequency == 0:
+        if global_step < args.ee_learning_ends and \
+            global_step > args.ee_learning_starts and \
+            global_step % args.train_frequency == 0:
             data: EEReplayBufferSamples = rb.sample_state_pairs(args.batch_size)
             if data is not None:
                 input = torch.stack([data.observations, data.future_observations], dim=1)
                 
-                pred = ee.network(input)
-                target_onestep = data.first_aux_rewards + args.gamma * pred
-                target_mc = data.discounted_aux_rewards
+                pred = ee.network(input, data.visited_partitions)
+                target_onestep = data.aux_reward + args.gamma * pred
+                target_mc = data.mc_aux_reward
 
                 delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
 
-                target = (1 - args.eta) * target_onestep + args.eta * delta_mc
-                loss = F.mse_loss(target, pred)
+                target = (1 - args.eta_ee) * target_onestep + args.eta_ee * delta_mc
+                loss = F.huber_loss(target, pred)
 
                 if global_step % 100 == 0:
                     print(f"Training EE. Loss: {loss}")
