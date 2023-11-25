@@ -28,10 +28,6 @@ from stable_baselines3.common.type_aliases import (
 )
 
 from torch.utils.tensorboard import SummaryWriter
-from dataclasses import dataclass
-
-from memory_profiler import profile
-import gc 
 
 # Network = namedtuple('Network', ['network', 'optimizer', 'target_network'])
 class Network(NamedTuple):
