@@ -29,7 +29,7 @@ from stable_baselines3.common.type_aliases import (
 
 from torch.utils.tensorboard import SummaryWriter
 
-# Network = namedtuple('Network', ['network', 'optimizer', 'target_network'])
+
 class Network(NamedTuple):
     network: nn.Module
     optimizer: optim.Optimizer
@@ -306,6 +306,8 @@ def parse_args():
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=0.00025,
         help="the learning rate of the optimizer")
+    parser.add_argument("--learning-rate-ee", type=float, default=0.0000625,
+        help="the learning rate of the optimizer")
     parser.add_argument("--buffer-size", type=int, default=1000000,
         help="the replay memory buffer size")
     parser.add_argument("--gamma", type=float, default=0.99,
@@ -340,6 +342,8 @@ def parse_args():
         help="the increase in partitioning frequency")
     parser.add_argument("--max-partitions", type=int, default=20,
         help="maximum number of partitions")
+    parser.add_argument("--partition-update-freq", type=int, default=4,
+        help="the number of steps between checking partition")
     parser.add_argument("--beta", type=float, default=1,
         help="constant bonus factor for pellets")
     parser.add_argument("--eta-q", type=float, default=0.1,
@@ -573,7 +577,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         ee_network.load_state_dict(checkpoint['model_state_dict'])
         init_global_step = checkpoint['global_step']
         
-    ee_optimizer = optim.Adam(ee_network.parameters(), lr=args.learning_rate)
+    ee_optimizer = optim.Adam(ee_network.parameters(), lr=args.learning_rate_ee)
     ee = Network(ee_network, ee_optimizer, None)
 
 
@@ -606,7 +610,6 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     epsilon = args.start_e
 
     # Variables for plotting purposes
-
     episodic_return = 0
     episodic_length = 0
     episode_samples = Episode()
@@ -620,7 +623,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             actions = env.action_space.sample() 
 
             # Calculate Auxilary Reward of EE
-            aux_reward = calculate_aux_reward(q_values, actions).cpu()
+            aux_reward = calculate_aux_reward(q_values, actions)
             
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminated, truncated, info = env.step(actions)
@@ -654,14 +657,15 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminated, truncated, info = env.step(actions)
 
-            # Determin the current partition
+            # Determine the current partition
             # Update the set of visited partitions
-            p = indicator_tensor(list(visited_partitions), args.max_partitions)
-            curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee, p)
-            visited_partitions_next = visited_partitions.copy().union([index.item(), ])
+            if global_step % args.partition_update_freq == 0:
+                p = indicator_tensor(list(visited_partitions), args.max_partitions)
+                curr_partition, index, partition_distance = closest_partition(next_obs, partitions, ee, p)
+                visited_partitions_next = visited_partitions.copy().union([index.item(), ])
 
             # Count steps
-            if rewards or index.item() not in visited_partitions:
+            if rewards or (index not in visited_partitions):
                 time_since_reward = 0
             else:
                 time_since_reward += 1
@@ -690,7 +694,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         episode_samples.add(obs, actions, real_next_obs, terminated, rewards, aux_reward, new_partition, episode, avg_visitation_rate)
         
         # Adding new partition logic
-        if global_step > args.partition_starts and partitions.shape[0] < args.max_partitions:
+        if global_step > args.partition_starts and partitions.shape[0] <= args.max_partitions:
             time_to_partition += 1
             if time_to_partition > partition_add_threshold:
                 new_partition = np.expand_dims(next_partition, axis=0)
@@ -709,8 +713,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         if truncated or terminated or (args.terminal_on_loss and life < last_life):
             # Reset epsisode variables
             rb.add_episode(episode_samples)
-            # episode_samples.delete()
             episode_samples = Episode()
+            
             distance_from_partition = 0
             time_since_reward = 0
             visited_partitions_next = set([0])
@@ -726,25 +730,25 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             avg_visitation_rate = avg_visitation_rate * args.visit_rate_decay + (1 - args.visit_rate_decay) * visited
             intrinsic_reward =  (args.beta / (episode * avg_visitation_rate).sqrt()) * visited
             intrinsic_reward = torch.nan_to_num(intrinsic_reward).sum().item()
-            
-            print("SPS:", int((global_step - init_global_step) / (time.time() - start_time)))
-            writer.add_scalar("charts/SPS", int((global_step - init_global_step) / (time.time() - start_time)), global_step)
-            start_time = time.time()
-            init_global_step = global_step
-            # Plotting
-            print(f"global_step={global_step}, episodic_return={episodic_return}")
-            writer.add_scalar("rewards/intrinsic_reward", intrinsic_reward, global_step)
-            writer.add_scalar("rewards/episodic_return", episodic_return, global_step)
-            writer.add_scalar("rewards/total_reward", episodic_return + intrinsic_reward, global_step)
-            writer.add_scalar("partitions/no_visited_partitions", len(visited_partitions), global_step)
+            if episode % 20 == 0:
+                print("SPS:", int((global_step - init_global_step) / (time.time() - start_time)))
+                writer.add_scalar("charts/SPS", int((global_step - init_global_step) / (time.time() - start_time)), global_step)
+                start_time = time.time()
+                init_global_step = global_step
+                # Plotting
+                print(f"global_step={global_step}, episodic_return={episodic_return}")
+                writer.add_scalar("rewards/intrinsic_reward", intrinsic_reward, global_step)
+                writer.add_scalar("rewards/episodic_return", episodic_return, global_step)
+                writer.add_scalar("rewards/total_reward", episodic_return + intrinsic_reward, global_step)
+                writer.add_scalar("partitions/no_visited_partitions", len(visited_partitions), global_step)
 
-            writer.add_scalar("charts/episodic_length", episodic_length, global_step)
-            writer.add_scalar("charts/epsiode", episode, global_step)
-            writer.add_scalar("charts/epsilon", epsilon, global_step)
+                writer.add_scalar("charts/episodic_length", episodic_length, global_step)
+                writer.add_scalar("charts/epsiode", episode, global_step)
+                writer.add_scalar("charts/epsilon", epsilon, global_step)
 
-            writeable_visitations = visitation_counts.cpu().numpy()
-            for i, count in enumerate(writeable_visitations):
-                writer.add_scalar(f"visitation_counts/partition_{i}", count, global_step=global_step)
+                writeable_visitations = visitation_counts.cpu().numpy()
+                for i, count in enumerate(writeable_visitations):
+                    writer.add_scalar(f"visitation_counts/partition_{i}", count, global_step=global_step)
 
             # Reset plotting variables
             episodic_return = 0
@@ -781,7 +785,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 old_val = q.network(data.observations).gather(1, data.actions).squeeze()
                 loss = F.huber_loss(td_target, old_val)
 
-                if global_step % 100 == 0:
+                if global_step % 1000 == 0:
                     writer.add_scalar("q_losses/td_loss", loss, global_step)
                     writer.add_scalar("q_losses/q_values", old_val.mean().item(), global_step)
                     
@@ -825,7 +829,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 target = (1 - args.eta_ee) * target_onestep + args.eta_ee * delta_mc
                 loss = F.huber_loss(target, pred)
 
-                if global_step % 100 == 0:
+                if global_step % 1000 == 0:
                     print(f"Training EE. Loss: {loss}")
                     writer.add_scalar("ee_losses/ee_loss", loss, global_step)
                     writer.add_scalar("ee_losses/ee_distance_predicted", magnitude_vector(target_onestep).mean().item(), global_step)
