@@ -378,9 +378,9 @@ def make_env(env_id, seed, idx, capture_video, run_name):
         # if "FIRE" in env.unwrapped.get_action_meanings():
         #     env = FireResetEnv(env)
         # env = ClipRewardEnv(env)
-        env = gym.wrappers.AtariPreprocessing(env, noop_max=0)
-        # env = gym.wrappers.ResizeObservation(env, (84, 84))
-        # env = gym.wrappers.GrayScaleObservation(env)
+        # env = gym.wrappers.AtariPreprocessing(env, noop_max=30)
+        env = gym.wrappers.ResizeObservation(env, (84, 84))
+        env = gym.wrappers.GrayScaleObservation(env)
         env = gym.wrappers.FrameStack(env, 4)
         
         env.action_space.seed(seed)
