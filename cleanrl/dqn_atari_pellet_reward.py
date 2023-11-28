@@ -373,10 +373,10 @@ def make_env(env_id, seed, idx, capture_video, run_name):
 
         env = NoopResetEnv(env, noop_max=30)
         env = MaxAndSkipEnv(env, skip=4)
-        env = EpisodicLifeEnv(env)
-        if "FIRE" in env.unwrapped.get_action_meanings():
-            env = FireResetEnv(env)
-        env = ClipRewardEnv(env)
+        # env = EpisodicLifeEnv(env)
+        # if "FIRE" in env.unwrapped.get_action_meanings():
+        #     env = FireResetEnv(env)
+        # env = ClipRewardEnv(env)
         env = gym.wrappers.ResizeObservation(env, (84, 84))
         env = gym.wrappers.GrayScaleObservation(env)
         env = gym.wrappers.FrameStack(env, 4)
@@ -441,7 +441,7 @@ class EENetwork(nn.Module):
 
 def calculate_aux_reward(q_values: torch.Tensor, action: int):
     
-    aux_reward = -torch.nn.functional.softmax(q_values.clone())
+    aux_reward = -torch.nn.functional.softmax(q_values.clone(), dim=0)
     aux_reward[action] += 1
 
     return aux_reward
@@ -469,7 +469,7 @@ def distance(s1: torch.Tensor, repr_states: torch.Tensor, ee: Network, visited_p
     # s^hat  - s'
     # s      - s^hat
     # s'     - s^hat
-    # (And so on repeating...)
+    # (And so on repeating...)reset
     x1 = torch.cat([ref_point, ref_point, s, s_hat], dim=1).view((-1, *s.shape[1:]))
     x2 = torch.cat([s, s_hat, ref_point, ref_point], dim=1).view((-1, *s.shape[1:]))
     # We subtract as the network subs the two transformed states
@@ -594,7 +594,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
-    obs, _ = env.reset(seed=args.seed)
+    obs, info = env.reset(seed=args.seed)
     # Partitions
     empty_partition = torch.Tensor(env.observation_space.sample()[-1, :, :] * 0)
     partitions = torch.unsqueeze(torch.Tensor(obs[-1]), dim=0).to(device)
@@ -607,9 +607,9 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
     time_since_reward = 0
     q_learning_started = -1
-    last_life = args.lives
     episode = 0
     epsilon = args.start_e
+    last_life = None
 
     # Variables for plotting purposes
     episodic_return = 0
@@ -688,10 +688,11 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             else:
                 new_partition = new_partition.pop()
 
-            
-        if args.terminal_on_loss:
-            life = info['lives']
+        last_life = last_life if last_life is not None else info['lives']
+
+        terminated = terminated | (args.terminal_on_loss and info['lives'] < last_life)
                 
+
         # rb.add(obs, real_next_obs, actions, rewards, terminated, aux_reward, new_partition, info)
         episode_samples.add(obs, actions, real_next_obs, terminated, rewards, aux_reward, new_partition, episode, avg_visitation_rate)
         
@@ -702,7 +703,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 new_partition = np.expand_dims(next_partition, axis=0)
                 if args.track:
                     wandb.log({f'Partitions': wandb.Image(next_partition, caption=f"Partition {len(partitions)}")})
-                new_partition = torch.Tensor(new_partition).to(device)
+                new_partition = torch.Tensor(new_partition).clone().to(device)
                 
                 partitions = torch.cat([partitions, new_partition])
                 visitation_counts = torch.cat([visitation_counts, torch.ones((1,), device=device)])
@@ -710,21 +711,22 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 partition_add_threshold *= args.partition_time_multiplier
                 distance_from_partition = 0
                 time_to_partition = 0
+                new_partition = None
 
                 writer.add_scalar("partitions/no_of_partitions", partitions.shape[0], global_step)
 
         # On epsiode termination
-        if truncated or terminated or (args.terminal_on_loss and life < last_life):
+        if truncated or terminated:
             # Reset epsisode variables
             rb.add_episode(episode_samples)
             episode_samples = Episode()
+            last_life = None
             
             distance_from_partition = 0
             time_since_reward = 0
             visited_partitions_next = set([0])
-            next_obs, _ = env.reset()
-            last_life = args.lives
-
+            next_obs, info = env.reset()
+            obs = next_obs
             # Update visitation count
             for partition_index in visited_partitions:
                 visitation_counts[partition_index] += 1
@@ -756,7 +758,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
             # Reset plotting variables
             episodic_return = 0
-            episodic_length = 0
+            episodic_length = 0 
             episode += 1
 
         # UPDATING PLOTTING VARIABLES
@@ -767,8 +769,6 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
         obs = next_obs
         visited_partitions = visited_partitions_next
 
-        if args.terminal_on_loss:
-            last_life = life
 
         # ALGO LOGIC: training Q.
         if global_step > args.partition_starts:
