@@ -723,7 +723,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             time_since_reward = 0
             visited_partitions_next = set([0])
             next_obs, _ = env.reset()
-            last_life = args.lifes
+            last_life = args.lives
 
             # Update visitation count
             for partition_index in visited_partitions:
