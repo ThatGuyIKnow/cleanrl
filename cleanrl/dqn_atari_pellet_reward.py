@@ -223,7 +223,7 @@ class PelletReplayBuffer(ReplayBuffer):
                 limit = self.pos + (self.buffer_size - index)
             else:
                 limit = self.pos - index
-            if limit <= 1:
+            if limit <= 2:
                 break
 
             max_offset = min(self.remainding_steps[index, 0], limit)
@@ -233,8 +233,8 @@ class PelletReplayBuffer(ReplayBuffer):
             batch_inds.append(index)
             end_batch_inds.append(end_index)
 
-        batch_inds = np.array(batch_inds, dtype=np.int32)
-        end_batch_inds = np.array(end_batch_inds, dtype=np.int32)
+        batch_inds = (np.array(batch_inds, dtype=np.int32) + 1) % self.buffer_size
+        end_batch_inds = np.array(end_batch_inds, dtype=np.int32) - 1
 
         if len(obs) == 0:
             return None
@@ -785,9 +785,9 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                     target_max, _ = q.target_network(data.next_observations).max(dim=1)
                 
                 one_step = q.network(data.next_observations).gather(1, data.actions).squeeze()
-                one_step_target = data.rewards.flatten() + args.gamma * one_step_target
+                one_step_target = data.rewards.flatten() + args.gamma * one_step
 
-                td_target = (1 - args.eta) * one_step_target + args.eta * data.mc_rewards
+                td_target = (1 - args.eta_q) * one_step_target + args.eta_q * data.mc_rewards
 
                 old_val = q.network(data.observations).gather(1, data.actions).squeeze()
                 loss = F.huber_loss(old_val, td_target)
