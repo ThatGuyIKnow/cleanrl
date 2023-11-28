@@ -11,13 +11,29 @@
                 "--env-id", "BreakoutNoFrameskip-v4",
                 "--buffer-size=1000",
                 "--partition-delta=1000",
+                "--partition-starts=1000",
                 "--learning-starts=4",
                 "--total-timesteps=10000",
-                "--learning-starts=2",
                 "--exploration-fraction=1000",
-                "--partition-starts=1000",
                 "--start-e=0.8",
                 "--ee-learning-starts=800"
+            ]
+        },
+
+        {
+            "name": "Pellet Full",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/cleanrl/dqn_atari_pellet_reward.py",
+            "args": [
+                "--env-id", "BreakoutNoFrameskip-v4",
+                "--buffer-size=70000",
+                "--batch-size=128",
+                "--learning-starts=4",
+                "--checkpoint-q=200000",
+                "--checkpoint-ee=200000",
+                "--track"
             ]
         }
     ]

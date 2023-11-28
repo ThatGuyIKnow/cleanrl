@@ -298,6 +298,8 @@ def parse_args():
         help="whether to save checkpoints of Q model into the `runs/{run_name}/Q/` folder")
     parser.add_argument("--pretrained-ee", type=str, default=None,
         help="path to use a pretrained EE")
+    parser.add_argument("--lives", type=int, default=5,
+        help="number of lives")
     
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="BreakoutNoFrameskip-v4",
@@ -605,7 +607,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
     time_since_reward = 0
     q_learning_started = -1
-    last_life = 99999999
+    last_life = args.lives
     episode = 0
     epsilon = args.start_e
 
@@ -698,6 +700,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             time_to_partition += 1
             if time_to_partition > partition_add_threshold:
                 new_partition = np.expand_dims(next_partition, axis=0)
+                if args.track:
+                    wandb.log({f'Partitions': wandb.Image(next_partition, caption=f"Partition {len(partitions)}")})
                 new_partition = torch.Tensor(new_partition).to(device)
                 
                 partitions = torch.cat([partitions, new_partition])
@@ -719,7 +723,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             time_since_reward = 0
             visited_partitions_next = set([0])
             next_obs, _ = env.reset()
-            last_life = 999999
+            last_life = args.lifes
 
             # Update visitation count
             for partition_index in visited_partitions:
