@@ -5,7 +5,7 @@ import os
 import random
 import time
 from distutils.util import strtobool
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Union
 from gymnasium import spaces
 
 import gymnasium as gym
@@ -14,14 +14,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from stable_baselines3.common.atari_wrappers import (
-    ClipRewardEnv,
-    EpisodicLifeEnv,
-    FireResetEnv,
-    MaxAndSkipEnv,
-    NoopResetEnv,
-)
-from gymnasium.wrappers import AtariPreprocessing
+# from stable_baselines3.common.atari_wrappers import (
+#     ClipRewardEnv,
+#     EpisodicLifeEnv,
+#     FireResetEnv,
+#     MaxAndSkipEnv,
+#     NoopResetEnv,
+# )
+# from gymnasium.wrappers import AtariPreprocessing
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.type_aliases import (
@@ -609,7 +609,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
     time_since_reward = 0
     q_learning_started = -1
-    episode = 0
+    episode = 1
     epsilon = args.start_e
     last_life = None
 
@@ -685,8 +685,8 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             
             # Add to replay buffer if we've discovered a new partition
             new_partition = visited_partitions_next.difference(visited_partitions)
-            if len(new_partition) == 0:
-                new_partition = -1
+            if len(visited_partitions_next.difference(visited_partitions)) == 0:
+                new_partition = None
             else:
                 new_partition = new_partition.pop()
 
@@ -719,26 +719,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
 
         # On epsiode termination
         if truncated or terminated:
-            # Reset epsisode variables
-            rb.add_episode(episode_samples)
-            episode_samples = Episode()
-            last_life = None
-            
-            distance_from_partition = 0
-            time_since_reward = 0
-            visited_partitions_next = set([0])
-            next_obs, info = env.reset()
-            obs = next_obs
-            # Update visitation count
-            for partition_index in visited_partitions:
-                visitation_counts[partition_index] += 1
-        
-            # Intrinsic 
-            visited = indicator_tensor(list(visited_partitions), len(visitation_counts)).to(device)
-            avg_visitation_rate = avg_visitation_rate * args.visit_rate_decay + (1 - args.visit_rate_decay) * visited
-            intrinsic_reward =  (args.beta / (episode * avg_visitation_rate).sqrt()) * visited
-            intrinsic_reward = torch.nan_to_num(intrinsic_reward).sum().item()
+            # intrinsic_reward =  (args.beta / (episode * avg_visitation_rate).sqrt()) * visited
+            # intrinsic_reward = torch.nan_to_num(intrinsic_reward).sum().item()
             if episode % 20 == 0:
+                intrinsic_reward = sum(episode_samples.intrinsic_rewards).item()
                 print("SPS:", int((global_step - init_global_step) / (time.time() - start_time)))
                 writer.add_scalar("charts/SPS", int((global_step - init_global_step) / (time.time() - start_time)), global_step)
                 start_time = time.time()
@@ -758,6 +742,23 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 for i, count in enumerate(writeable_visitations):
                     writer.add_scalar(f"visitation_counts/partition_{i}", count, global_step=global_step)
 
+            # Reset epsisode variables
+            rb.add_episode(episode_samples)
+            episode_samples = Episode()
+            last_life = None
+            
+            distance_from_partition = 0
+            time_since_reward = 0
+            visited_partitions_next = set([0])
+            next_obs, info = env.reset()
+            obs = next_obs
+            # Update visitation count
+            for partition_index in visited_partitions:
+                visitation_counts[partition_index] += 1
+        
+            # Intrinsic 
+            visited = indicator_tensor(list(visited_partitions), len(visitation_counts)).to(device)
+            avg_visitation_rate = avg_visitation_rate * args.visit_rate_decay + (1 - args.visit_rate_decay) * visited
             # Reset plotting variables
             episodic_return = 0
             episodic_length = 0 
@@ -783,13 +784,13 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 with torch.no_grad():
                     target_max, _ = q.target_network(data.next_observations).max(dim=1)
                 
-                target = data.rewards + args.gamma * target_max * (1 - data.dones.flatten())
+                one_step = q.network(data.next_observations).gather(1, data.actions).squeeze()
+                one_step_target = data.rewards.flatten() + args.gamma * one_step_target
 
-                td_target = (1 - args.eta_q) * target + args.eta_q * data.mc_rewards
-                td_target = data.rewards + args.gamma * target_max * (1 - data.dones.flatten())
-                    
+                td_target = (1 - args.eta) * one_step_target + args.eta * data.mc_rewards
+
                 old_val = q.network(data.observations).gather(1, data.actions).squeeze()
-                loss = F.huber_loss(td_target, old_val)
+                loss = F.huber_loss(old_val, td_target)
 
                 if global_step % 1000 == 0:
                     writer.add_scalar("q_losses/td_loss", loss, global_step)
@@ -830,10 +831,10 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 target_onestep = data.aux_reward + args.gamma * pred
                 target_mc = data.mc_aux_reward
 
-                delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
+                # delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
 
-                target = (1 - args.eta_ee) * target_onestep + args.eta_ee * delta_mc
-                loss = F.huber_loss(target, pred)
+                target = (1 - args.eta_ee) * target_onestep + args.eta_ee * target_mc
+                loss = F.huber_loss(pred, target)
 
                 if global_step % 1000 == 0:
                     print(f"Training EE. Loss: {loss}")
