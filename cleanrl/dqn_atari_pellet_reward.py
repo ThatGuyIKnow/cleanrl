@@ -92,7 +92,7 @@ class Episode:
             rate = avg_visitation_rate[new_partition]
             intrinsic_reward = (args.beta / (episode * rate).sqrt()).to('cpu')
         else:
-            intrinsic_reward = 0
+            intrinsic_reward = torch.Tensor([0])
 
         self.intrinsic_rewards.append(intrinsic_reward)
         
@@ -722,7 +722,7 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
             # intrinsic_reward =  (args.beta / (episode * avg_visitation_rate).sqrt()) * visited
             # intrinsic_reward = torch.nan_to_num(intrinsic_reward).sum().item()
             if episode % 20 == 0:
-                intrinsic_reward = sum(episode_samples.intrinsic_rewards).item()
+                intrinsic_reward = sum(episode_samples.intrinsic_rewards)
                 print("SPS:", int((global_step - init_global_step) / (time.time() - start_time)))
                 writer.add_scalar("charts/SPS", int((global_step - init_global_step) / (time.time() - start_time)), global_step)
                 start_time = time.time()
@@ -831,9 +831,9 @@ poetry run pip install "stable_baselines3==2.0.0a1" "gymnasium[atari,accept-rom-
                 target_onestep = data.aux_reward + args.gamma * pred
                 target_mc = data.mc_aux_reward
 
-                # delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip)
+                delta_mc = torch.clip(target_mc - target_onestep, -args.mc_clip, args.mc_clip) + target_onestep
 
-                target = (1 - args.eta_ee) * target_onestep + args.eta_ee * target_mc
+                target = (1 - args.eta_ee) * target_onestep + args.eta_ee * delta_mc
                 loss = F.huber_loss(pred, target)
 
                 if global_step % 1000 == 0:
