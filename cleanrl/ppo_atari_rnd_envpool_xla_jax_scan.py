@@ -589,7 +589,7 @@ if __name__ == "__main__":
         writer.add_scalar(
             "charts/avg_episodic_length", np.mean(jax.device_get(episode_stats.returned_episode_lengths)), global_step
         )
-        writer.add_scalar("charts/learning_rate", agent_state.opt_state[1].hyperparams["learning_rate"].item(), global_step)
+        writer.add_scalar("charts/learning_rate", agent_state.opt_state['trainable'].hyperparams["learning_rate"].item(), global_step)
         writer.add_scalar("losses/value_loss", v_loss[-1, -1].item(), global_step)
         writer.add_scalar("losses/policy_loss", pg_loss[-1, -1].item(), global_step)
         writer.add_scalar("losses/entropy", entropy_loss[-1, -1].item(), global_step)
