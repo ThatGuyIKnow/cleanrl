@@ -455,7 +455,7 @@ if __name__ == "__main__":
 
         # RND loss
         rnd_loss = optax.l2_loss(pred_emb, jax.lax.stop_gradient(static_emb))
-        rnd_loss = rnd_loss.mean()
+        rnd_loss = rnd_loss.sum()
 
         loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef + rnd_loss
         return loss, (pg_loss, v_loss, entropy_loss, jax.lax.stop_gradient(approx_kl), rnd_loss)
@@ -525,7 +525,7 @@ if __name__ == "__main__":
         static_embedding = rnd_static.apply(agent_state.params[3], obs)
         # rnd_predict_params
         predictor_embedding = rnd_static.apply(agent_state.params[4], obs)
-        intrinsic_reward = args.rnd_alpha * jax.numpy.linalg.norm((static_embedding - predictor_embedding))
+        intrinsic_reward = args.rnd_alpha * jax.numpy.linalg.norm((static_embedding - predictor_embedding), ord=2)
         
         reward += intrinsic_reward
 
