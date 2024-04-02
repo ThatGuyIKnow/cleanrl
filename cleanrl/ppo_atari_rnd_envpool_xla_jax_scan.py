@@ -90,6 +90,8 @@ class Args:
     """the target KL divergence threshold"""
     rnd_alpha: float = 1.0
     """The alpha weighting for intrinsic reward"""
+    rnd_update_porpotions: float = 0.25
+    """Random dropout for rand update"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -469,7 +471,11 @@ if __name__ == "__main__":
         entropy_loss = entropy.mean()
 
         # RND loss
-        rnd_loss = optax.l2_loss(pred_emb, static_emb).mean()
+        rnd_loss = optax.l2_loss(pred_emb, static_emb)
+        mask = jax,random.uniform(rnd_predict_key, (len(rnd_loss)))
+        mask = (mask < args.rnd_update_porpotions)
+        rnd_loss = (rnd_loss * mask).sum() / max(rnd_loss.sum(), 1)
+
 
         loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef + rnd_loss + i_loss
         return loss, (pg_loss, v_loss, entropy_loss, jax.lax.stop_gradient(approx_kl), rnd_loss)
@@ -636,7 +642,7 @@ if __name__ == "__main__":
         if args.upload_model:
             from cleanrl_utils.huggingface import push_to_hub
 
-            repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}"
+            repo_name = f"{args.env_id}-{args.exp_name}-sppoeed{args.seed}"
             repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
             push_to_hub(args, episodic_returns, repo_id, "PPO", f"runs/{run_name}", f"videos/{run_name}-eval")
 
