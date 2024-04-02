@@ -58,9 +58,9 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 2.5e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 8
+    num_envs: int = 128
     """the number of parallel game environments"""
-    num_steps: int = 128
+    num_steps: int = 64
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = True
     """Toggle learning rate annealing for policy and value networks"""
@@ -526,6 +526,9 @@ if __name__ == "__main__":
         # rnd_predict_params
         predictor_embedding = rnd_static.apply(agent_state.params[4], obs)
         intrinsic_reward = args.rnd_alpha * jax.numpy.linalg.norm((static_embedding - predictor_embedding))
+        
+        reward += intrinsic_reward
+
         storage = Storage(
             obs=obs,
             actions=action,
@@ -563,9 +566,11 @@ if __name__ == "__main__":
         )
         avg_episodic_return = np.mean(jax.device_get(episode_stats.returned_episode_returns))
         print(f"global_step={global_step}, avg_episodic_return={avg_episodic_return}")
+        avg_episodic_intrisic_reward = np.mean(jax.device_get(episode_stats.returned_episode_returns))
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         writer.add_scalar("charts/avg_episodic_return", avg_episodic_return, global_step)
+        writer.add_scalar("charts/avg_episodic_intrisic_reward", avg_episodic_intrisic_reward, global_step)
         writer.add_scalar(
             "charts/avg_episodic_length", np.mean(jax.device_get(episode_stats.returned_episode_lengths)), global_step
         )
