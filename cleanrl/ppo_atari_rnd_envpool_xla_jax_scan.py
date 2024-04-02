@@ -431,7 +431,7 @@ if __name__ == "__main__":
         dones = jnp.concatenate([storage.dones, next_done[None, :]], axis=0)
         values = jnp.concatenate([storage.values, next_value[None, :]], axis=0)
         intrinsic_advantages = jnp.zeros((args.num_envs,))
-        intrinsic_dones = jnp.concatenate([storage.dones, next_done[None, :]], axis=0) and False
+        intrinsic_dones = jnp.full_like(dones, False, dtype=bool)
         intrinsic_values = jnp.concatenate([storage.intrinsic_value, next_value[None, :]], axis=0)
         _, advantages = jax.lax.scan(
             compute_gae_once, advantages, (dones[1:], values[1:], values[:-1], storage.rewards), reverse=True
