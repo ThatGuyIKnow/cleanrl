@@ -473,8 +473,8 @@ if __name__ == "__main__":
         # RND loss
         rnd_loss = optax.l2_loss(pred_emb, static_emb)
         mask = jax.random.uniform(rnd_predict_key, rnd_loss.shape)
-        masked_rnd_loss = (mask < args.rnd_update_porpotions) * rnd_loss
-        rnd_loss = masked_rnd_loss.sum() / max(rnd_loss.sum(), jnp.array([1.]))
+        mask = (mask < args.rnd_update_porpotions).astype(jnp.float64)
+        rnd_loss = (rnd_loss * mask).sum() / max(rnd_loss.sum(), 1.)
 
 
         loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef + rnd_loss + i_loss
