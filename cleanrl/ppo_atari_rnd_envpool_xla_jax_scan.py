@@ -42,6 +42,8 @@ class Args:
     """the wandb's project name"""
     wandb_entity: str = None
     """the entity (team) of wandb's project"""
+    wandb_tag: str = None
+    """the tag of the experiment"""
     capture_video: bool = False
     """whether to capture videos of the agent performances (check out `videos` folder)"""
     save_model: bool = False
@@ -160,7 +162,6 @@ class Critic(nn.Module):
     def __call__(self, x):
         return nn.Dense(1, kernel_init=orthogonal(1), bias_init=constant(0.0))(x)
 
-
 class Actor(nn.Module):
     action_dim: Sequence[int]
 
@@ -221,23 +222,6 @@ class RNDPredictionEmbedding(RND):
         x = nn.Dense(512, 512)(x)
         return x
 
-
-@flax.struct.dataclass
-class AgentParams:
-    network_params: flax.core.FrozenDict
-    actor_params: flax.core.FrozenDict
-    critic_params: flax.core.FrozenDict
-    rnd_static_params: flax.core.FrozenDict
-    rnd_predict_params: flax.core.FrozenDict
-
-    def __iter__(self):
-        return list(self.network_params, 
-                    self.actor_params, 
-                    self.critic_params, 
-                    self.rnd_static_params, 
-                    self.rnd_predict_params)
-
-
 @flax.struct.dataclass
 class Storage:
     obs: jnp.array
@@ -249,8 +233,11 @@ class Storage:
     returns: jnp.array
     rewards: jnp.array
     static_embedding: jnp.array
-    predict_embedding: jnp.array
+    predicted_embedding: jnp.array
+    intrinsic_value: jnp.array
     intrinsic_reward: jnp.array
+    intrinsic_returns: jnp.array
+    intrinsic_advantages: jnp.array
 
 
 @flax.struct.dataclass
@@ -273,6 +260,7 @@ if __name__ == "__main__":
         wandb.init(
             project=args.wandb_project_name,
             entity=args.wandb_entity,
+            tags=[args.wandb_tag] if args.wandb_tag is not None else None,
             sync_tensorboard=True,
             config=vars(args),
             name=run_name,
@@ -331,31 +319,46 @@ if __name__ == "__main__":
     critic = Critic()
     rnd_static = RNDStaticEmbedding()
     rnd_predictor = RNDPredictionEmbedding()
-    
+    intrinsic_critic = Critic()
 
 
     network_params = network.init(network_key, np.array([envs.single_observation_space.sample()]))
-    agent_state = TrainState.create(
-        apply_fn=None,
-        params=[
-            network_params, 
-            actor.init(actor_key, network.apply(network_params, np.array([envs.single_observation_space.sample()]))),
-            critic.init(critic_key, network.apply(network_params, np.array([envs.single_observation_space.sample()]))),
-            rnd_static.init(rnd_static_key, np.array([envs.single_observation_space.sample()])),
-            rnd_predictor.init(rnd_predict_key, np.array([envs.single_observation_space.sample()])),
-        ],
-        tx=optax.chain(
+    params = {
+            'ppo': {
+                'network': network_params, 
+                'actor': actor.init(actor_key, network.apply(network_params, np.array([envs.single_observation_space.sample()]))),
+                'critic': critic.init(critic_key, network.apply(network_params, np.array([envs.single_observation_space.sample()]))),
+                'intrinsic_critic': intrinsic_critic.init(critic_key, network.apply(network_params, np.array([envs.single_observation_space.sample()]))),
+            },
+            'rnd':{
+                'static': rnd_static.init(rnd_static_key, np.array([envs.single_observation_space.sample()])),
+                'predictor': rnd_predictor.init(rnd_predict_key, np.array([envs.single_observation_space.sample()])),
+        }
+    }
+    
+    partition_optimizers = {
+        'trainable': optax.chain(
             optax.clip_by_global_norm(args.max_grad_norm),
             optax.inject_hyperparams(optax.adam)(
                 learning_rate=linear_schedule if args.anneal_lr else args.learning_rate, eps=1e-5
             ),
-        )
+        ), 
+        'frozen': optax.set_to_zero()}
+    param_partitions = flax.traverse_util.path_aware_map(
+        lambda path, v: 'frozen' if 'static' in path else 'trainable', params)
+    tx = optax.multi_transform(partition_optimizers, param_partitions)
+    
+    agent_state = TrainState.create(
+        apply_fn=None,
+        params=params,
+        tx=tx
     )
     network.apply = jax.jit(network.apply)
     actor.apply = jax.jit(actor.apply)
     critic.apply = jax.jit(critic.apply)
     rnd_static.apply = jax.jit(rnd_static.apply)
     rnd_predictor.apply = jax.jit(rnd_predictor.apply)
+    intrinsic_critic.apply = jax.jit(intrinsic_critic.apply)
 
     @jax.jit
     def get_action_and_value(
@@ -365,9 +368,9 @@ if __name__ == "__main__":
     ):
         """sample action, calculate value, logprob, entropy, and update storage"""
          # .network_params
-        hidden = network.apply(agent_state.params[0], next_obs)
+        hidden = network.apply(agent_state.params['ppo']['network'], next_obs)
         # actor_params
-        logits = actor.apply(agent_state.params[1], hidden)
+        logits = actor.apply(agent_state.params['ppo']['actor'], hidden)
         # sample action: Gumbel-softmax trick
         # see https://stats.stackexchange.com/questions/359442/sampling-from-a-categorical-distribution
         key, subkey = jax.random.split(key)
@@ -375,8 +378,9 @@ if __name__ == "__main__":
         action = jnp.argmax(logits - jnp.log(-jnp.log(u)), axis=1)
         logprob = jax.nn.log_softmax(logits)[jnp.arange(action.shape[0]), action]
         # critic_params
-        value = critic.apply(agent_state.params[2], hidden)
-        return action, logprob, value.squeeze(1), key
+        value = critic.apply(agent_state.params['ppo']['critic'], hidden)
+        int_value = critic.apply(agent_state.params['ppo']['intrinsic_critic'], hidden)
+        return action, logprob, value.squeeze(1), int_value.squeeze(1), key
 
     @jax.jit
     def get_action_and_value2(
@@ -386,9 +390,9 @@ if __name__ == "__main__":
     ):
         """calculate value, logprob of supplied `action`, and entropy"""
         # network_params
-        hidden = network.apply(params[0], x)
+        hidden = network.apply(params['ppo']['network'], x)
         # actor_params
-        logits = actor.apply(params[1], hidden)
+        logits = actor.apply(params['ppo']['actor'], hidden)
         logprob = jax.nn.log_softmax(logits)[jnp.arange(action.shape[0]), action]
         # normalize the logits https://gregorygundersen.com/blog/2020/02/09/log-sum-exp/
         logits = logits - jax.scipy.special.logsumexp(logits, axis=-1, keepdims=True)
@@ -396,8 +400,9 @@ if __name__ == "__main__":
         p_log_p = logits * jax.nn.softmax(logits)
         entropy = -p_log_p.sum(-1)
         # critic_params
-        value = critic.apply(params[2], hidden).squeeze()
-        return logprob, entropy, value
+        value = critic.apply(params['ppo']['critic'], hidden).squeeze()
+        intrinsic_value = critic.apply(params['ppo']['intrinsic_critic'], hidden).squeeze()
+        return logprob, entropy, value, intrinsic_value
 
     def compute_gae_once(carry, inp, gamma, gae_lambda):
         advantages = carry
@@ -419,29 +424,36 @@ if __name__ == "__main__":
     ):
         # critic_params, network_params
         next_value = critic.apply(
-            agent_state.params[2], network.apply(agent_state.params[0], next_obs)
+            agent_state.params['ppo']['critic'], network.apply(agent_state.params['ppo']['network'], next_obs)
         ).squeeze()
 
         advantages = jnp.zeros((args.num_envs,))
+        intrinsic_advantages = jnp.zeros((args.num_envs,))
         dones = jnp.concatenate([storage.dones, next_done[None, :]], axis=0)
         values = jnp.concatenate([storage.values, next_value[None, :]], axis=0)
         _, advantages = jax.lax.scan(
             compute_gae_once, advantages, (dones[1:], values[1:], values[:-1], storage.rewards), reverse=True
         )
+        _, intrinsic_advantages = jax.lax.scan(
+            compute_gae_once, intrinsic_advantages, (dones[1:], values[1:], values[:-1], storage.intrinsic_reward), reverse=True
+        )
         storage = storage.replace(
             advantages=advantages,
+            intrinsic_advantages=intrinsic_advantages,
             returns=advantages + storage.values,
         )
         return storage
 
-    def ppo_loss(params, x, a, logp, mb_advantages, mb_returns, static_emb, pred_emb):
-        newlogprob, entropy, newvalue = get_action_and_value2(params, x, a)
+    def ppo_loss(params, x, a, logp, mb_advantages, mb_returns, int_value, pred_emb, static_emb, int_advantage):
+        newlogprob, entropy, newvalue, newintvalue = get_action_and_value2(params, x, a)
         logratio = newlogprob - logp
         ratio = jnp.exp(logratio)
         approx_kl = ((ratio - 1) - logratio).mean()
 
         if args.norm_adv:
             mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
+
+        mb_advantages += int_advantage
 
         # Policy loss
         pg_loss1 = -mb_advantages * ratio
@@ -450,14 +462,14 @@ if __name__ == "__main__":
 
         # Value loss
         v_loss = 0.5 * ((newvalue - mb_returns) ** 2).mean()
+        i_loss = 0.5 * ((newintvalue - int_value) ** 2).mean()
 
         entropy_loss = entropy.mean()
 
         # RND loss
-        rnd_loss = optax.l2_loss(pred_emb, jax.lax.stop_gradient(static_emb))
-        rnd_loss = rnd_loss.sum()
+        rnd_loss = optax.l2_loss(pred_emb, static_emb).mean()
 
-        loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef + rnd_loss
+        loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef + rnd_loss + i_loss
         return loss, (pg_loss, v_loss, entropy_loss, jax.lax.stop_gradient(approx_kl), rnd_loss)
 
     ppo_loss_grad_fn = jax.value_and_grad(ppo_loss, has_aux=True)
@@ -492,8 +504,10 @@ if __name__ == "__main__":
                     minibatch.logprobs,
                     minibatch.advantages,
                     minibatch.returns,
+                    minibatch.intrinsic_value,
+                    minibatch.predicted_embedding,
                     minibatch.static_embedding,
-                    minibatch.predict_embedding
+                    minibatch.intrinsic_advantages
                 )
                 agent_state = agent_state.apply_gradients(grads=grads)
                 return agent_state, (loss, pg_loss, v_loss, entropy_loss, approx_kl, rnd_loss, grads)
@@ -517,18 +531,16 @@ if __name__ == "__main__":
     # based on https://github.dev/google/evojax/blob/0625d875262011d8e1b6aa32566b236f44b4da66/evojax/sim_mgr.py
     def step_once(carry, step, env_step_fn):
         agent_state, episode_stats, obs, done, key, handle = carry
-        action, logprob, value, key = get_action_and_value(agent_state, obs, key)
+        action, logprob, value, int_value, key = get_action_and_value(agent_state, obs, key)
 
         episode_stats, handle, (next_obs, reward, next_done, _) = env_step_fn(episode_stats, handle, action)
 
         # rnd_static_params
-        static_embedding = rnd_static.apply(agent_state.params[3], obs)
+        static_embedding = rnd_static.apply(agent_state.params['rnd']['static'], next_obs)
         # rnd_predict_params
-        predictor_embedding = rnd_static.apply(agent_state.params[4], obs)
+        predictor_embedding = rnd_static.apply(agent_state.params['rnd']['predictor'], next_obs)
         intrinsic_reward = args.rnd_alpha * jax.numpy.linalg.norm((static_embedding - predictor_embedding), ord=2)
         
-        reward += intrinsic_reward
-
         storage = Storage(
             obs=obs,
             actions=action,
@@ -536,11 +548,14 @@ if __name__ == "__main__":
             dones=done,
             values=value,
             rewards=reward,
+            predicted_embedding=predictor_embedding,
+            static_embedding=static_embedding,
             returns=jnp.zeros_like(reward),
             advantages=jnp.zeros_like(reward),
-            static_embedding=static_embedding,
-            predict_embedding=predictor_embedding,
-            intrinsic_reward=intrinsic_reward
+            intrinsic_value=int_value,
+            intrinsic_reward=intrinsic_reward,
+            intrinsic_returns=jnp.zeros_like(reward),
+            intrinsic_advantages=jnp.zeros_like(intrinsic_reward),
         )
         return ((agent_state, episode_stats, next_obs, next_done, key, handle), storage)
 
@@ -595,9 +610,9 @@ if __name__ == "__main__":
                     [
                         vars(args),
                         [
-                            agent_state.params[0], # .network_params,
-                            agent_state.params[1], # .actor_params,
-                            agent_state.params[2], # .critic_params,
+                            agent_state.params['ppo']['network'], # .network_params,
+                            agent_state.params['ppo']['actor'], # .actor_params,
+                            agent_state.params['ppo']['critic'], # .critic_params,
                         ],
                     ]
                 )
