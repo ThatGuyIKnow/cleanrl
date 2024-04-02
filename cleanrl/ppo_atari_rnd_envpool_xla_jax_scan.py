@@ -546,7 +546,7 @@ if __name__ == "__main__":
         # rnd_static_params
         static_embedding = rnd_static.apply(agent_state.params['rnd']['static'], next_obs)
         # rnd_predict_params
-        predictor_embedding = rnd_static.apply(agent_state.params['rnd']['predictor'], next_obs)
+        predictor_embedding = rnd_predictor.apply(agent_state.params['rnd']['predictor'], next_obs)
         intrinsic_reward = args.rnd_alpha * jax.numpy.linalg.norm((static_embedding - predictor_embedding), ord=2)
         
         storage = Storage(
