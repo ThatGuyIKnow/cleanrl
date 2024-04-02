@@ -265,11 +265,11 @@ if __name__ == "__main__":
     network_params = network.init(network_key, np.array([envs.single_observation_space.sample()]))
     agent_state = TrainState.create(
         apply_fn=None,
-        params=AgentParams(
+        params=[
             network_params,
             actor.init(actor_key, network.apply(network_params, np.array([envs.single_observation_space.sample()]))),
             critic.init(critic_key, network.apply(network_params, np.array([envs.single_observation_space.sample()]))),
-        ),
+        ],
         tx=optax.chain(
             optax.clip_by_global_norm(args.max_grad_norm),
             optax.inject_hyperparams(optax.adam)(
@@ -288,15 +288,18 @@ if __name__ == "__main__":
         key: jax.random.PRNGKey,
     ):
         """sample action, calculate value, logprob, entropy, and update storage"""
-        hidden = network.apply(agent_state.params.network_params, next_obs)
-        logits = actor.apply(agent_state.params.actor_params, hidden)
+        #network_params
+        hidden = network.apply(agent_state.params[0], next_obs)
+        #actor_params
+        logits = actor.apply(agent_state.params[1], hidden)
         # sample action: Gumbel-softmax trick
         # see https://stats.stackexchange.com/questions/359442/sampling-from-a-categorical-distribution
         key, subkey = jax.random.split(key)
         u = jax.random.uniform(subkey, shape=logits.shape)
         action = jnp.argmax(logits - jnp.log(-jnp.log(u)), axis=1)
         logprob = jax.nn.log_softmax(logits)[jnp.arange(action.shape[0]), action]
-        value = critic.apply(agent_state.params.critic_params, hidden)
+        #critic_params
+        value = critic.apply(agent_state.params[2], hidden)
         return action, logprob, value.squeeze(1), key
 
     @jax.jit
@@ -306,15 +309,18 @@ if __name__ == "__main__":
         action: np.ndarray,
     ):
         """calculate value, logprob of supplied `action`, and entropy"""
-        hidden = network.apply(params.network_params, x)
-        logits = actor.apply(params.actor_params, hidden)
+        # network_params
+        hidden = network.apply(params[0], x)
+        # actor_params
+        logits = actor.apply(params[1], hidden)
         logprob = jax.nn.log_softmax(logits)[jnp.arange(action.shape[0]), action]
         # normalize the logits https://gregorygundersen.com/blog/2020/02/09/log-sum-exp/
         logits = logits - jax.scipy.special.logsumexp(logits, axis=-1, keepdims=True)
         logits = logits.clip(min=jnp.finfo(logits.dtype).min)
         p_log_p = logits * jax.nn.softmax(logits)
         entropy = -p_log_p.sum(-1)
-        value = critic.apply(params.critic_params, hidden).squeeze()
+        #critic_params
+        value = critic.apply(params[2], hidden).squeeze()
         return logprob, entropy, value
 
     def compute_gae_once(carry, inp, gamma, gae_lambda):
@@ -335,8 +341,9 @@ if __name__ == "__main__":
         next_done: np.ndarray,
         storage: Storage,
     ):
+        #critic_params, network_params
         next_value = critic.apply(
-            agent_state.params.critic_params, network.apply(agent_state.params.network_params, next_obs)
+            agent_state.params[2], network.apply(agent_state.params[0], next_obs)
         ).squeeze()
 
         advantages = jnp.zeros((args.num_envs,))
@@ -489,11 +496,7 @@ if __name__ == "__main__":
                 flax.serialization.to_bytes(
                     [
                         vars(args),
-                        [
-                            agent_state.params.network_params,
-                            agent_state.params.actor_params,
-                            agent_state.params.critic_params,
-                        ],
+                        agent_state.params,
                     ]
                 )
             )
