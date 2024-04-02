@@ -231,11 +231,8 @@ class AgentParams:
     rnd_predict_params: flax.core.FrozenDict
 
     def __iter__(self):
-        return list(self.network_params, 
-                    self.actor_params, 
-                    self.critic_params, 
-                    self.rnd_static_params, 
-                    self.rnd_predict_params)
+        for field in AgentParams.fields(self):
+            yield getattr(self, field.name)
 
 
 @flax.struct.dataclass
