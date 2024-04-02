@@ -230,6 +230,13 @@ class AgentParams:
     rnd_static_params: flax.core.FrozenDict
     rnd_predict_params: flax.core.FrozenDict
 
+    def __iter__(self):
+        return list(self.network_params, 
+                    self.actor_params, 
+                    self.critic_params, 
+                    self.rnd_static_params, 
+                    self.rnd_predict_params)
+
 
 @flax.struct.dataclass
 class Storage:
