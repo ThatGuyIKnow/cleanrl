@@ -428,14 +428,16 @@ if __name__ == "__main__":
         ).squeeze()
 
         advantages = jnp.zeros((args.num_envs,))
-        intrinsic_advantages = jnp.zeros((args.num_envs,))
         dones = jnp.concatenate([storage.dones, next_done[None, :]], axis=0)
         values = jnp.concatenate([storage.values, next_value[None, :]], axis=0)
+        intrinsic_advantages = jnp.zeros((args.num_envs,))
+        intrinsic_dones = jnp.concatenate([storage.dones, next_done[None, :]], axis=0) and False
+        intrinsic_values = jnp.concatenate([storage.intrinsic_value, next_value[None, :]], axis=0)
         _, advantages = jax.lax.scan(
             compute_gae_once, advantages, (dones[1:], values[1:], values[:-1], storage.rewards), reverse=True
         )
         _, intrinsic_advantages = jax.lax.scan(
-            compute_gae_once, intrinsic_advantages, (dones[1:], values[1:], values[:-1], storage.intrinsic_reward), reverse=True
+            compute_gae_once, intrinsic_advantages, (intrinsic_dones[1:], intrinsic_values[1:], intrinsic_values[:-1], storage.intrinsic_reward), reverse=True
         )
         storage = storage.replace(
             advantages=advantages,
