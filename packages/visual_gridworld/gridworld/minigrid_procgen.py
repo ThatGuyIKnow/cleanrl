@@ -121,7 +121,7 @@ class RandomLuminationTiles(GridWorldTiles):
         super().__init__(cell_size, [10, ]*7, random)
     
     def construct_floors(self, cell_size, count=10):
-        base = np.ones((cell_size, cell_size, 3))
+        base = np.ones((cell_size, cell_size, 3), np.float32)
         start = 0.5
         end = 0.8
         step = (end - start) / count
@@ -134,7 +134,7 @@ class RandomLuminationTiles(GridWorldTiles):
         return arr
 
     def construct_walls(self, cell_size, count=10):
-        base = np.zeros((cell_size, cell_size, 3))
+        base = np.zeros((cell_size, cell_size, 3), np.float32)
         base[:,:,2] = 1.
         start = 0.3
         end = 0.7
@@ -144,40 +144,42 @@ class RandomLuminationTiles(GridWorldTiles):
 
 
     def construct_goals(self, cell_size, count=10):
-        base = np.zeros((cell_size, cell_size, 3))
+        base = np.zeros((cell_size, cell_size, 3), np.float32)
         base[:,:,1] = 1.
         start = 0.3
         end = 0.7
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
-        return np.stack(arr, axis=0)
+        return (np.stack(arr, axis=0) * 255).astype(np.uint8)
 
     def construct_keys(self, cell_size, count=10):
-        base = np.zeros((cell_size, cell_size, 3))
+        base = np.zeros((cell_size, cell_size, 3), np.float32)
         base[:,:,0] = 1.
         base[:,:,1] = 1.
         start = 0.3
         end = 0.7
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
-        return np.stack(arr, axis=0)
+        return (np.stack(arr, axis=0) * 255).astype(np.uint8)
+        
 
     def construct_doors(self, cell_size, count=10):
-        base = np.zeros((cell_size, cell_size, 3))
+        base = np.zeros((cell_size, cell_size, 3), np.float32)
         base[:,:,0] = 1.
         base[:,:,2] = 1.
         start = 0.3
         end = 0.7
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
-        return np.stack(arr, axis=0)
+        return (np.stack(arr, axis=0) * 255).astype(np.uint8)
+        
     
     def construct_key_doors(self, cell_size, count=10):
         return self.construct_doors(cell_size, count)
         
     
     def construct_players(self, cell_size, floor_tiles, count=10):
-        base = np.zeros((cell_size, cell_size, 3))
+        base = np.zeros((cell_size, cell_size, 3), np.float32)
         triangle = np.tril(m=np.arange(1,self.cell_size*2+1))[:self.cell_size:2,:self.cell_size]
         triangle = np.rot90(np.concatenate([triangle, triangle[::-1]]))
         i = np.where(triangle != 0)
@@ -190,7 +192,7 @@ class RandomLuminationTiles(GridWorldTiles):
         arr = np.stack(arr, axis=0)
         all_direction = [np.rot90(arr, -i, axes=(1,2)) for i in range(4)]
         final_tiles = [self.mix_player_and_floor(player, floor_tiles) for player in all_direction]
-        return np.stack(final_tiles, axis=2)
+        return (np.stack(final_tiles, axis=2) * 255).astype(np.uint8)
 
 
     def mix_player_and_floor(self, player_rgb, floor_rgb):
@@ -254,7 +256,6 @@ class MultiRoomGridworld(GridWorldGeneration):
         grid = np.zeros([width, height])
         room_list, door_list = self.get_room_map(width, height, room_count, max_room_size, 8)
         # room_list = [[(10, 0), (5, 4)],]
-        print(room_list, door_list)
         for (x, y), (w, h) in room_list:
             right = x + w
             bottom = y + h
@@ -322,7 +323,6 @@ class MultiRoomGridworld(GridWorldGeneration):
                 
                 success = aux(room_list, door_pos_list + [exit_door,], exit_face)
                 if success is not None:
-                    print(exit_face)
                     room_list, door_pos_list = success
                     return room_list, door_pos_list
             
@@ -347,7 +347,7 @@ class Gridworld(gymnasium.Env):
 
         # Observations are dictionaries with the agent's and the target's location.
         # Each location is encoded as an element of {0, ..., `size`}^2, i.e. MultiDiscrete([size, size]).
-        self.observation_space = spaces.Box(0, 1, (self.width, self.height), np.float32)
+        self.observation_space = spaces.Box(0, 1, (self.width * cell_size, self.height * cell_size, 3), np.uint8)
 
         # We have 5 actions, corresponding to "right", "up", "left", "down", "use"
         self.action_space = spaces.Discrete(5)
@@ -439,6 +439,8 @@ class Gridworld(gymnasium.Env):
             'episodic_reward': 0,
         }
 
+        observation = self.rgb_render()
+        return observation, self.info
 
     ################################################################################################
     ### VALIDATION
@@ -496,7 +498,7 @@ class Gridworld(gymnasium.Env):
         new_position = (self.player_position[0] + move[0], self.player_position[1] + move[1])
         if self.can_move(new_position):
             self.current_room = self.get_room(new_position)
-            print(f'Curent room: {self.current_room}')
+            # print(f'Curent room: {self.current_room}')
             self.visited_rooms.add(self.current_room)
             self.player_position = new_position
         if self.reached_goal(new_position):
@@ -511,14 +513,14 @@ class Gridworld(gymnasium.Env):
             self.pick_up_key()
 
         elif self.has_key and self.grid[x][y] == CellType.KEY_DOOR.value:
-            print("You've unlocked the door!")
+            # print("You've unlocked the door!")
             # Optionally, update the grid to reflect the door being opened
             self.place_object((x, y), CellType.FLOOR.value)
             self.has_key = False
 
         # Check if the player can interact with the door
         elif self.grid[x][y] == CellType.DOOR.value:
-            print("You've opened the door!")
+            # print("You've opened the door!")
             self.place_object((x, y), CellType.FLOOR.value)
 
         elif self.has_key and self.grid[x][y] == CellType.FLOOR.value:
@@ -591,18 +593,24 @@ class DoorKey5x5Gridworld(Gridworld):
     env_name = "DoorKey5x5-Gridworld-v0"
     max_episode_steps=300
 
-    def __init__(self, cell_size = 30, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+    def __init__(self, cell_size = 30, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+        width = height = 5
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
         random = np.random.RandomState(seed)
         grid_gen = DoorKeyGridworld(random, width=5, height=5)
         random_tile = RandomLuminationTiles(cell_size, random)
-        super().__init__(5, 5, cell_size, render_mode, grid_gen, random_tile, seed)
+        super().__init__(width, height, cell_size, render_mode, grid_gen, random_tile, seed)
 
 class DoorKey6x6Gridworld(Gridworld):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     env_name = "DoorKey6x6-Gridworld-v0"
     max_episode_steps=300
 
-    def __init__(self, width, height, cell_size = 30, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+    def __init__(self, width, height, cell_size = 30, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+        width = height = 6
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
         random = np.random.RandomState(seed)
         grid_gen = DoorKeyGridworld(random, width=6, height=6)
         random_tile = RandomLuminationTiles(cell_size, random)
@@ -613,8 +621,10 @@ class DoorKey8x8Gridworld(Gridworld):
     env_name = "DoorKey8x8-Gridworld-v0"
     max_episode_steps=300
 
-    def __init__(self, cell_size = 30, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+    def __init__(self, cell_size = 30, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         width = height = 8
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
         random = np.random.RandomState(seed)
         grid_gen = DoorKeyGridworld(random, width=width, height=height)
         random_tile = RandomLuminationTiles(cell_size, random)
@@ -626,8 +636,10 @@ class DoorKey16x16Gridworld(Gridworld):
     env_name = "DoorKey16x16-Gridworld-v0"
     max_episode_steps=300
 
-    def __init__(self, cell_size = 30, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+    def __init__(self, cell_size = 30, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         width = height = 16
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
         random = np.random.RandomState(seed)
         grid_gen = DoorKeyGridworld(random, width=width, height=height)
         random_tile = RandomLuminationTiles(cell_size, random)

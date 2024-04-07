@@ -18,7 +18,7 @@ for _ in range(step_count):
     if done or truncated:
         e.reset()
     e.render()
-    time.sleep(0.05)
+    time.sleep(0.01)
 end_time = dt.datetime.now()
 
 print(f"Time for {step_count} steps: {end_time - start_time}. SPS: {step_count/(end_time-start_time).total_seconds()}")
