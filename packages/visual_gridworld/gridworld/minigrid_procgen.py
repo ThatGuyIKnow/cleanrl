@@ -73,15 +73,14 @@ class GridWorldTiles(abc.ABC):
         tiles = {id: self.tiles[id][tile_i] for id, tile_i in zip(ids, tile_index)}
 
         # Select the correct player tile and correct background tile
-        tiles[CellType.PLAYER] = self.tiles[CellType.PLAYER][tile_index[-1]], tile_index[0]
+        tiles[CellType.PLAYER] = self.tiles[CellType.PLAYER][tile_index[-1], tile_index[0]]
 
-        tiles[CellType.FLOOR] = [tile_index[0]]
-        tiles[CellType.WALL] = self.construct_walls(cell_size)[tile_index[1]]
-        tiles[CellType.GOAL] = self.construct_goals(cell_size)[tile_index[2]]
-        tiles[CellType.KEY] = self.construct_keys(cell_size)[tile_index[3]]
-        tiles[CellType.DOOR] = self.construct_key_doors(cell_size)[tile_index[4]]
-        tiles[CellType.KEY_DOOR] = self.construct_doors(cell_size)[tile_index[5]]
-        tiles[CellType.PLAYER] = self.construct_players(cell_size)[tile_index[6]]
+        tiles[CellType.FLOOR] = self.tiles[CellType.FLOOR][tile_index[0]]
+        tiles[CellType.WALL] = self.tiles[CellType.WALL][tile_index[1]]
+        tiles[CellType.GOAL] = self.tiles[CellType.GOAL][tile_index[2]]
+        tiles[CellType.KEY] = self.tiles[CellType.KEY][tile_index[3]]
+        tiles[CellType.DOOR] = self.tiles[CellType.DOOR][tile_index[4]]
+        tiles[CellType.KEY_DOOR] = self.tiles[CellType.KEY_DOOR][tile_index[5]]
 
         return tiles 
     
@@ -94,7 +93,7 @@ class GridWorldTiles(abc.ABC):
         tiles[CellType.KEY] = self.construct_keys(cell_size)
         tiles[CellType.DOOR] = self.construct_key_doors(cell_size)
         tiles[CellType.KEY_DOOR] = self.construct_doors(cell_size)
-        tiles[CellType.PLAYER] = self.construct_players(cell_size)
+        tiles[CellType.PLAYER] = self.construct_players(cell_size, tiles[CellType.FLOOR])
 
         return tiles 
     
@@ -199,7 +198,7 @@ class RandomLuminationTiles(GridWorldTiles):
         for player in player_rgb:
             i = np.where(player.sum(-1) != 0)
             masked_floor = np.copy(floor_rgb)
-            masked_floor[:, i[0], i[1], 0] = 0
+            masked_floor[:, i[0], i[1], :] = 0
             arr.append(masked_floor + player)
         return np.stack(arr)
 
@@ -512,7 +511,7 @@ class Gridworld(gymnasium.Env):
             self.pick_up_key()
 
         elif self.has_key and self.grid[x][y] == CellType.KEY_DOOR.value:
-            print("You've unlocked the door!")def rgb_render
+            print("You've unlocked the door!")
             # Optionally, update the grid to reflect the door being opened
             self.place_object((x, y), CellType.FLOOR.value)
             self.has_key = False

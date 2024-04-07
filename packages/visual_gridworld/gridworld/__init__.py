@@ -1,1 +1,0 @@
-from .minigrid_procgen import DoorKey5x5Gridworld, DoorKey6x6Gridworld

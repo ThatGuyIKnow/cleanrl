@@ -1,7 +1,6 @@
 
 import gymnasium
 from gymnasium.envs.registration import register
-
 from visual_gridworld.gridworld.minigrid_procgen import (DoorKey5x5Gridworld, 
                                                          DoorKey6x6Gridworld,
                                                          DoorKey8x8Gridworld,
