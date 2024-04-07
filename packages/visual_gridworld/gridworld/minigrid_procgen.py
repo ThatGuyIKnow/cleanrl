@@ -61,20 +61,40 @@ class GridWorldTiles(abc.ABC):
         else:
             self.random = random
 
+        self.tiles = self._preload_tiles()
+
     def set_random(self, random: np.random.RandomState):
         self.random = random
 
     def construct_tiles(self):
         cell_size = self.cell_size
-        tiles: Dict[CellType, np.typing.NDArray] = {}
         tile_index = [self.random.choice(v) for v  in self.tile_count]
-        tiles[CellType.FLOOR] = self.construct_floors(cell_size)[tile_index[0]]
+        ids = [CellType.FLOOR, CellType.WALL, CellType.GOAL, CellType.KEY, CellType.DOOR, CellType.KEY_DOOR]
+        tiles = {id: self.tiles[id][tile_i] for id, tile_i in zip(ids, tile_index)}
+
+        # Select the correct player tile and correct background tile
+        tiles[CellType.PLAYER] = self.tiles[CellType.PLAYER][tile_index[-1]], tile_index[0]
+
+        tiles[CellType.FLOOR] = [tile_index[0]]
         tiles[CellType.WALL] = self.construct_walls(cell_size)[tile_index[1]]
         tiles[CellType.GOAL] = self.construct_goals(cell_size)[tile_index[2]]
         tiles[CellType.KEY] = self.construct_keys(cell_size)[tile_index[3]]
         tiles[CellType.DOOR] = self.construct_key_doors(cell_size)[tile_index[4]]
         tiles[CellType.KEY_DOOR] = self.construct_doors(cell_size)[tile_index[5]]
         tiles[CellType.PLAYER] = self.construct_players(cell_size)[tile_index[6]]
+
+        return tiles 
+    
+    def _preload_tiles(self):
+        cell_size = self.cell_size
+        tiles: Dict[CellType, np.typing.NDArray] = {}
+        tiles[CellType.FLOOR] = self.construct_floors(cell_size)
+        tiles[CellType.WALL] = self.construct_walls(cell_size)
+        tiles[CellType.GOAL] = self.construct_goals(cell_size)
+        tiles[CellType.KEY] = self.construct_keys(cell_size)
+        tiles[CellType.DOOR] = self.construct_key_doors(cell_size)
+        tiles[CellType.KEY_DOOR] = self.construct_doors(cell_size)
+        tiles[CellType.PLAYER] = self.construct_players(cell_size)
 
         return tiles 
     
@@ -157,7 +177,7 @@ class RandomLuminationTiles(GridWorldTiles):
         return self.construct_doors(cell_size, count)
         
     
-    def construct_players(self, cell_size, count=10):
+    def construct_players(self, cell_size, floor_tiles, count=10):
         base = np.zeros((cell_size, cell_size, 3))
         triangle = np.tril(m=np.arange(1,self.cell_size*2+1))[:self.cell_size:2,:self.cell_size]
         triangle = np.rot90(np.concatenate([triangle, triangle[::-1]]))
@@ -170,9 +190,18 @@ class RandomLuminationTiles(GridWorldTiles):
         arr = [base * lum for lum in np.arange(start,end,step)]
         arr = np.stack(arr, axis=0)
         all_direction = [np.rot90(arr, -i, axes=(1,2)) for i in range(4)]
-        return np.stack(all_direction, axis=1)
+        final_tiles = [self.mix_player_and_floor(player, floor_tiles) for player in all_direction]
+        return np.stack(final_tiles, axis=2)
 
 
+    def mix_player_and_floor(self, player_rgb, floor_rgb):
+        arr = []
+        for player in player_rgb:
+            i = np.where(player.sum(-1) != 0)
+            masked_floor = np.copy(floor_rgb)
+            masked_floor[:, i[0], i[1], 0] = 0
+            arr.append(masked_floor + player)
+        return np.stack(arr)
 
 class DoorKeyGridworld(GridWorldGeneration):
     def __init__(self, random, width, height) -> None:
@@ -328,6 +357,8 @@ class Gridworld(gymnasium.Env):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
 
+        self.rgb_obs = None
+
         """
         If human-rendering is used, `self.window` will be a reference
         to the window that we draw to. `self.clock` will be a clock that is used
@@ -396,6 +427,7 @@ class Gridworld(gymnasium.Env):
         self.done = False
         self.grid, self.player_position, self.player_direction, self.room_entrances = \
             self.generation.generate_grid_world()
+        self.rgb_obs = self.construct_rgb_obs()
         self.last_player_position = self.player_position
         self.has_key = False
         self.step_count = 0
@@ -453,8 +485,12 @@ class Gridworld(gymnasium.Env):
     ################################################################################################
     
     def place_object(self, position, symbol):
+        x, y = position
         if self.coordinate_valid(position):
             self.grid[position[0]][position[1]] = symbol
+            x *= self.cell_size
+            y *= self.cell_size
+            self.rgb_obs[x:x+self.cell_size,y:y+self.cell_size] = self.cell_render[CellType(symbol)]
     
     def move_player(self):
         move = Direction.to_vectors()[self.player_direction.value]
@@ -476,7 +512,7 @@ class Gridworld(gymnasium.Env):
             self.pick_up_key()
 
         elif self.has_key and self.grid[x][y] == CellType.KEY_DOOR.value:
-            print("You've unlocked the door!")
+            print("You've unlocked the door!")def rgb_render
             # Optionally, update the grid to reflect the door being opened
             self.place_object((x, y), CellType.FLOOR.value)
             self.has_key = False
@@ -501,27 +537,16 @@ class Gridworld(gymnasium.Env):
     ### RENDERING
     ################################################################################################
     
-    def mix_player_and_floor(self, player_rgb, floor_rgb):
-        i = np.where(player_rgb != 0)
-        masked_floor = np.copy(floor_rgb)
-        masked_floor[i] = 0
-        return masked_floor + player_rgb
-
     def rgb_render(self):
-        arr = []
-        for i in range(self.width * self.height):
-            x, y = i % self.width, i // self.height
-            if self.player_position == (x, y):
-                floor = self.cell_render[CellType.FLOOR]
-                player = self.cell_render[CellType.PLAYER][self.player_direction.value]
-                sprite = self.mix_player_and_floor(player, floor)
-                arr.append(sprite)
-            else:
-                type = self.grid[x][y]
-                arr.append(self.cell_render[CellType(type)])
-        arr = np.concatenate(arr, axis=0)
-        arr = np.concatenate(np.split(arr, self.height), axis=1)
-        return arr
+        x, y = self.player_position
+        direction = self.player_direction.value
+        x *= self.cell_size
+        y *= self.cell_size
+
+        rgb_obs = self.rgb_obs.copy()
+        rgb_obs[x:x+self.cell_size,y:y+self.cell_size] = self.cell_render[CellType.PLAYER][direction]
+
+        return rgb_obs
 
     def human_render(self):
         self.screen.fill((255, 255, 255))  # Fill the screen with white
@@ -529,6 +554,17 @@ class Gridworld(gymnasium.Env):
         surf = pygame.surfarray.make_surface(255 * self.rgb_render())
         self.screen.blit(surf, (0, 0))
         pygame.display.update()
+
+    def construct_rgb_obs(self):
+        arr = []
+        for i in range(self.width * self.height):
+            x, y = i % self.width, i // self.height
+            type = self.grid[x][y]
+            arr.append(self.cell_render[CellType(type)])
+        arr = np.concatenate(arr, axis=0)
+        arr = np.concatenate(np.split(arr, self.height), axis=1)
+        return arr
+
 
     ################################################################################################
     ### Human input
