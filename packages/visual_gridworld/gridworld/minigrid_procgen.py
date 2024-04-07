@@ -90,8 +90,8 @@ class GridWorldTiles(abc.ABC):
         tiles[CellType.DOOR] = self.tiles[CellType.DOOR][tile_index[4]]
         tiles[CellType.KEY_DOOR] = self.tiles[CellType.KEY_DOOR][tile_index[5]]
 
-        return tiles 
-    
+        return tiles
+
     def _preload_tiles(self):
         cell_size = self.cell_size
         tiles: Dict[CellType, np.typing.NDArray] = {}
@@ -103,10 +103,10 @@ class GridWorldTiles(abc.ABC):
         tiles[CellType.KEY_DOOR] = self.construct_doors(cell_size)
         tiles[CellType.PLAYER] = self.construct_players(cell_size, tiles[CellType.FLOOR])
 
-        
 
-        return tiles 
-    
+
+        return tiles
+
     @abc.abstractmethod
     def construct_floors(self):
         pass
@@ -129,7 +129,7 @@ class GridWorldTiles(abc.ABC):
 class RandomLuminationTiles(GridWorldTiles):
     def __init__(self, cell_size, random) -> None:
         super().__init__(cell_size, [10, ]*7, random)
-    
+
     def construct_floors(self, cell_size, count=10):
         base = np.ones((cell_size, cell_size, 3), np.float32)
         start = 0.7
@@ -171,7 +171,7 @@ class RandomLuminationTiles(GridWorldTiles):
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
         return (np.stack(arr, axis=0) * 255).astype(np.uint8)
-        
+
 
     def construct_doors(self, cell_size, count=10):
         base = np.zeros((cell_size, cell_size, 3), np.float32)
@@ -182,12 +182,12 @@ class RandomLuminationTiles(GridWorldTiles):
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
         return (np.stack(arr, axis=0) * 255).astype(np.uint8)
-        
-    
+
+
     def construct_key_doors(self, cell_size, count=10):
         return self.construct_doors(cell_size, count)
-        
-    
+
+
     def construct_players(self, cell_size, floor_tiles, count=10):
         base = np.zeros((cell_size, cell_size, 3), np.float32)
         triangle = np.tril(m=np.arange(1,self.cell_size*2+1))[:self.cell_size:2,:self.cell_size]
@@ -226,7 +226,7 @@ class DoorKeyGridworld(GridWorldGeneration):
         wall_poss = self.random.choice(w - 4) + 2
         # Generate the location of the wall, with the upper and lower most positions being invalid
         door_poss = self.random.choice(h - 2) + 1
-        
+
         # Build room with walls
         floors = np.ones((w-2, h-2)) * CellType.FLOOR.value
         grid = np.pad(floors, 1, constant_values=CellType.WALL.value)
@@ -247,7 +247,7 @@ class DoorKeyGridworld(GridWorldGeneration):
         grid[key_x,key_y] = CellType.KEY.value
 
         return grid, player_pos, player_direction, room_entrances
-    
+
 
 class MultiRoomGridworld(GridWorldGeneration):
     def __init__(self, random: np.random.RandomState, width: int, height: int, room_count: int, max_room_size: int) -> None:
@@ -256,7 +256,7 @@ class MultiRoomGridworld(GridWorldGeneration):
         self.height = height
         self.room_count = room_count
         self.max_room_size = max_room_size
-    
+
 
     def generate_grid_world(self):
         width = self.width
@@ -269,19 +269,19 @@ class MultiRoomGridworld(GridWorldGeneration):
         for (x, y), (w, h) in room_list:
             right = x + w
             bottom = y + h
-            grid[x:right,y:bottom] = CellType.WALL.value            
-            grid[x+1:right-1,y+1:bottom-1] = CellType.FLOOR.value            
+            grid[x:right,y:bottom] = CellType.WALL.value
+            grid[x+1:right-1,y+1:bottom-1] = CellType.FLOOR.value
         for x, y in door_list:
             grid[x,y] = CellType.DOOR.value
-        
+
         (last_x, last_y), _ = room_list[-1]
         grid[last_x + 1, last_y + 1] = CellType.GOAL.value
         player_pos = (room_list[0][0][0] + 1, room_list[0][0][1] + 1)
-        
+
         player_direction = Direction.turn_left(Direction.UP, self.random.choice(4))
 
         return grid, player_pos, player_direction, door_list
-    
+
 
     def get_room_map(self, width, height, room_count, max_room_size, max_tries):
         def aux(room_list, door_pos_list, entry_face: Direction):
@@ -306,14 +306,14 @@ class MultiRoomGridworld(GridWorldGeneration):
                 return None
             if (top + dims[1]) > height or (left + dims[0]) > width:
                 return None
-            
+
             for (left_other, top_other), (w_other, h_other) in room_list[:-1]:
                 if not (top_other > top + dims[1] or
-                        top > top_other + h_other or 
+                        top > top_other + h_other or
                         left + dims[0] < left_other or
                         left_other + w_other < left):
                     return None
-                
+
             room_list.append([(left, top), dims])
 
             if len(room_list) == room_count:
@@ -330,14 +330,14 @@ class MultiRoomGridworld(GridWorldGeneration):
                     exit_door = (left, top + self.random.choice(dims[1]-2) + 1)
                 elif exit_face == Direction.RIGHT:
                     exit_door = (left + dims[0] - 1, top + self.random.choice(dims[1]-2) + 1)
-                
+
                 success = aux(room_list, door_pos_list + [exit_door,], exit_face)
                 if success is not None:
                     room_list, door_pos_list = success
                     return room_list, door_pos_list
-            
+
             return None
-            
+
         res = None
         while res is None:
             first_room_y = self.random.choice(height-4)
@@ -346,16 +346,16 @@ class MultiRoomGridworld(GridWorldGeneration):
             if res is not None:
                 rooms, doors = res
         return rooms, doors[1:]
-        
+
 class Gridworld(gymnasium.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
-    def __init__(self, width, height, door_count, cell_size = 30, num_envs=1, render_mode: Literal['human', 'rgb_array'] = 'human', 
+    def __init__(self, width, height, door_count, cell_size = 30, num_envs=1, render_mode: Literal['human', 'rgb_array'] = 'human',
                  grid_generation: GridWorldGeneration=None, tile_generation: GridWorldTiles = None, seed=None):
         self.width = width
         self.height = height
         self.num_envs = num_envs
-        
+
         # Observations are dictionaries with the agent's and the target's location.
         # Each location is encoded as an element of {0, ..., `size`}^2, i.e. MultiDiscrete([size, size]).
         self.single_observation_space = spaces.Box(0, 255, (self.width * cell_size, self.height * cell_size, 3), np.uint8)
@@ -421,7 +421,7 @@ class Gridworld(gymnasium.Env):
             'current_room': np.zeros((num_envs, )),
             'episodic_return': np.zeros((num_envs, )),
         }
-        
+
 
     def handle_single_action(self, action, env_index):
         if action == 0:
@@ -439,7 +439,7 @@ class Gridworld(gymnasium.Env):
     def step(self, actions):
         self.step_counts += 1
         truncated = self.step_counts == self.max_step
-        
+
         if self.dones.any() or truncated.any():
             d = np.where(self.dones | truncated)[0]
             for index in d:
@@ -457,7 +457,7 @@ class Gridworld(gymnasium.Env):
 
         return observation, reward, self.dones, truncated, self.info
 
-    
+
     def reset(self, seed = None, options = None):
         super().reset(seed=seed)
         # We need the following line to seed self.np_random
@@ -474,7 +474,7 @@ class Gridworld(gymnasium.Env):
         self.dones[index] = False
         grid, player_position, player_direction, room_entrances = \
             self.generation.generate_grid_world()
-        
+
         self.grids[index,...] = grid
         self.room_entrances[index] = room_entrances
 
@@ -486,7 +486,7 @@ class Gridworld(gymnasium.Env):
         self.step_counts[index] = 0
         self.visited_rooms[index] = set()
         self.current_rooms[index] = 0
-        
+
         self.info['rooms_visited'][index] = 1
         self.info['step_count'][index] = 0
         self.info['current_room'][index] = 0
@@ -498,7 +498,7 @@ class Gridworld(gymnasium.Env):
     ################################################################################################
     ### VALIDATION
     ################################################################################################
-    
+
     def reached_goal(self, env_index, position):
         x, y = position
         return self.grids[env_index, x, y] == CellType.GOAL.value
@@ -518,13 +518,13 @@ class Gridworld(gymnasium.Env):
                                                    CellType.WALL.value, CellType.KEY.value]:
             return False
         return True
-    
+
 
     def get_room(self, env_index, position):
         if self.l1_norm(self.last_player_positions[env_index], position) != 2:
             return self.current_rooms[env_index]
         current_tile_door = np.where((self.room_entrances[env_index] == self.player_positions[env_index]).all(axis=1))[0]
-        
+
         if len(current_tile_door) == 0:
             return self.current_rooms[env_index]
         movement = 1 if current_tile_door == self.current_rooms[env_index] else -1
@@ -539,7 +539,7 @@ class Gridworld(gymnasium.Env):
     ################################################################################################
     ### INTERACTION
     ################################################################################################
-    
+
     def place_object(self, env_index, position, symbol):
         x, y = position
         if self.coordinate_valid(position):
@@ -547,7 +547,7 @@ class Gridworld(gymnasium.Env):
             x *= self.cell_size
             y *= self.cell_size
             self.rgb_obs[env_index, x:x+self.cell_size,y:y+self.cell_size] = self.cell_render[CellType(symbol)]
-    
+
     def move_player(self, env_index):
         move = Direction.to_vectors()[self.player_directions[env_index]]
         x, y = self.player_positions[env_index]
@@ -585,7 +585,7 @@ class Gridworld(gymnasium.Env):
             self.place_object(env_index, (x, y), CellType.KEY.value)
             self.has_key[env_index] = False
 
-    
+
     def pick_up_key(self, env_index):
         x, y = self.looking_at(env_index)
         if self.grids[env_index, x, y] == CellType.KEY.value:
@@ -595,7 +595,7 @@ class Gridworld(gymnasium.Env):
     ################################################################################################
     ### RENDERING
     ################################################################################################
-    
+
     def rgb_render(self):
         rgb_obs = self.rgb_obs.copy()
         # return rgb_obs
@@ -709,3 +709,56 @@ class DoorKey16x16Gridworld(Gridworld):
         grid_gen = DoorKeyGridworld(random, width=width, height=height)
         random_tile = RandomLuminationTiles(cell_size, random)
         super().__init__(width, height, 1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed)
+
+class NoisyDoorKey6x6Gridworld(Gridworld):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    env_name = "NoisyDoorKey6x6-Gridworld-v0"
+    max_episode_steps=300
+
+    def __init__(self, cell_size = 30, num_envs=1, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+        width = height = 6
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
+        random = np.random.RandomState(seed)
+        grid_gen = DoorKeyGridworld(random, width=6, height=6)
+        random_tile = RandomLuminationTiles(cell_size, random)
+        super().__init__(width, height, 1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed)
+
+    def step(self, actions):
+        self.step_counts += 1
+        truncated = self.step_counts == self.max_step
+
+        if self.dones.any() or truncated.any():
+            d = np.where(self.dones | truncated)[0]
+            for index in d:
+                self.reset_env(index)
+
+        for i, action in enumerate(actions):
+            self.handle_single_action(action, i)
+
+        observation = self.rgb_render()
+        reward = (1. - 0.9 * (self.step_counts / self.max_step)) * self.dones
+        self.info['step_count'] = self.step_counts
+        self.info['episodic_return'] += reward
+        self.info['current_room'] = self.current_rooms
+        self.info['rooms_visited'] = [len(visited_rooms) for visited_rooms in self.visited_rooms]
+
+        return observation, reward, self.dones, truncated, self.info
+
+    def rgb_render(self):
+        rgb_obs = self.rgb_obs.copy()
+        noise = np.random.random(rgb_obs.shape) * 2. - 1.
+        noise_mask = np.ones_like(self.grids)
+        noise_mask[np.where(self.grids != CellType.FLOOR.value)] = 0
+        noise_mask = noise_mask.repeat(self.cell_size, axis=-2).repeat(self.cell_size, axis=-1)
+        noise *= noise_mask[..., None]
+        noise = (noise * 50.).astype(np.uint8)
+        rgb_obs = rgb_obs + np.minimum(255 - rgb_obs, noise)
+        # return rgb_obs
+        for i in range(len(rgb_obs)):
+            x, y = self.player_positions[i]
+            direction = self.player_directions[i]
+            x *= self.cell_size
+            y *= self.cell_size
+            rgb_obs[i, x:x+self.cell_size,y:y+self.cell_size] = self.cell_render[CellType.PLAYER][direction]
+        return rgb_obs

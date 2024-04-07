@@ -38,7 +38,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/NoisyDoorKey6x6-Gridworld-v0"
+    env_id: str = "Visual/DoorKey6x6-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
