@@ -2,13 +2,22 @@
     "version": "0.1.0",
     "configurations": [
         {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
             "name": "Pellet",
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}/cleanrl/dqn_atari_pellet_reward.py",
             "args": [
-                "--env-id", "BreakoutNoFrameskip-v4",
+                "--env-id",
+                "BreakoutNoFrameskip-v4",
                 "--buffer-size=1000",
                 "--partition-delta=1000",
                 "--partition-starts=1000",
@@ -19,7 +28,6 @@
                 "--ee-learning-starts=800"
             ]
         },
-
         {
             "name": "Pellet Full",
             "type": "python",
@@ -27,7 +35,8 @@
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}/cleanrl/dqn_atari_pellet_reward.py",
             "args": [
-                "--env-id", "BreakoutNoFrameskip-v4",
+                "--env-id",
+                "BreakoutNoFrameskip-v4",
                 "--buffer-size=70000",
                 "--batch-size=128",
                 "--learning-starts=4",
