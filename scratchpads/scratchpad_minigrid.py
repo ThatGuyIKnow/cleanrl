@@ -5,7 +5,7 @@ import gymnasium as gym
 import datetime as dt
 # from ... import envs
 
-e = gym.make('Visual/DoorKey5x5-Gridworld-v0', render_mode='human')
+e = gym.make('Visual/DoorKey5x5-Gridworld-v0', render_mode='rgb_array')
 e.reset()
 e.render()
 
@@ -17,8 +17,6 @@ for _ in range(step_count):
     observation, reward, done, truncated, info = e.step(a)
     if done or truncated:
         e.reset()
-    e.render()
-    time.sleep(0.01)
 end_time = dt.datetime.now()
 
 print(f"Time for {step_count} steps: {end_time - start_time}. SPS: {step_count/(end_time-start_time).total_seconds()}")

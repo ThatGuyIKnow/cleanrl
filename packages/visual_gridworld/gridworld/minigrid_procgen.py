@@ -73,7 +73,7 @@ class GridWorldTiles(abc.ABC):
         tiles = {id: self.tiles[id][tile_i] for id, tile_i in zip(ids, tile_index)}
 
         # Select the correct player tile and correct background tile
-        tiles[CellType.PLAYER] = self.tiles[CellType.PLAYER][tile_index[-1], tile_index[0]]
+        tiles[CellType.PLAYER] = self.tiles[CellType.PLAYER][tile_index[0], tile_index[-1]]
 
         tiles[CellType.FLOOR] = self.tiles[CellType.FLOOR][tile_index[0]]
         tiles[CellType.WALL] = self.tiles[CellType.WALL][tile_index[1]]
@@ -122,7 +122,7 @@ class RandomLuminationTiles(GridWorldTiles):
     
     def construct_floors(self, cell_size, count=10):
         base = np.ones((cell_size, cell_size, 3), np.float32)
-        start = 0.5
+        start = 0.7
         end = 0.8
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
@@ -131,7 +131,7 @@ class RandomLuminationTiles(GridWorldTiles):
         arr[:, -1, :] -= 0.05
         arr[:, :, 0] -= 0.05
         arr[:, :, -1] -= 0.05
-        return arr
+        return (arr * 255.).astype(np.uint8)
 
     def construct_walls(self, cell_size, count=10):
         base = np.zeros((cell_size, cell_size, 3), np.float32)
@@ -140,7 +140,7 @@ class RandomLuminationTiles(GridWorldTiles):
         end = 0.7
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
-        return np.stack(arr, axis=0)
+        return (np.stack(arr, axis=0) * 255).astype(np.uint8)
 
 
     def construct_goals(self, cell_size, count=10):
@@ -199,7 +199,7 @@ class RandomLuminationTiles(GridWorldTiles):
         arr = []
         for player in player_rgb:
             i = np.where(player.sum(-1) != 0)
-            masked_floor = np.copy(floor_rgb)
+            masked_floor = np.copy(floor_rgb / 255.).astype(np.float32)
             masked_floor[:, i[0], i[1], :] = 0
             arr.append(masked_floor + player)
         return np.stack(arr)
@@ -347,7 +347,7 @@ class Gridworld(gymnasium.Env):
 
         # Observations are dictionaries with the agent's and the target's location.
         # Each location is encoded as an element of {0, ..., `size`}^2, i.e. MultiDiscrete([size, size]).
-        self.observation_space = spaces.Box(0, 1, (self.width * cell_size, self.height * cell_size, 3), np.uint8)
+        self.observation_space = spaces.Box(0, 255, (self.width * cell_size, self.height * cell_size, 3), np.uint8)
 
         # We have 5 actions, corresponding to "right", "up", "left", "down", "use"
         self.action_space = spaces.Discrete(5)
@@ -552,7 +552,7 @@ class Gridworld(gymnasium.Env):
     def human_render(self):
         self.screen.fill((255, 255, 255))  # Fill the screen with white
         # draw the array onto the surface
-        surf = pygame.surfarray.make_surface(255 * self.rgb_render())
+        surf = pygame.surfarray.make_surface(self.rgb_render())
         self.screen.blit(surf, (0, 0))
         pygame.display.update()
 
