@@ -40,5 +40,5 @@ if __name__ == "__main__":
 
     print(f"Time for {no_proc*num_envs*step_count} steps: {end_time - start_time}. SPS: {no_proc*num_envs*step_count/(end_time-start_time).total_seconds()}")
 
-
+    
     
