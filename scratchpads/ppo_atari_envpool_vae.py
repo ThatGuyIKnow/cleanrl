@@ -47,7 +47,7 @@ class Args:
     """the learning rate of the optimizer"""
     num_envs: int = 16
     """the number of parallel game environments"""
-    num_steps: int = 2048
+    num_steps: int = 512
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = True
     """Toggle learning rate annealing for policy and value networks"""
@@ -222,14 +222,10 @@ class Agent(nn.Module):
         self.latent_size = self.latent_channels * self.latent_dim
         self.network = VAE(input_channels=4, latent_dim=self.latent_dim, latent_channels=self.latent_channels)
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(self.latent_size, 64), std=0.01),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01)
+            layer_init(nn.Linear(self.latent_size, envs.single_action_space.n), std=0.01)
         )
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(self.latent_size, 64), std=0.01),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=0.01) 
+            layer_init(nn.Linear(self.latent_size, 1), std=0.01) 
         )
 
     def get_value(self, x):
@@ -281,7 +277,7 @@ if __name__ == "__main__":
         device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
     else:
         device = torch.device(args.device)
-        
+
     # env setup
     envs = envpool.make(
         args.env_id,
