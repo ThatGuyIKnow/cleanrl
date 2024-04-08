@@ -76,7 +76,7 @@ class Args:
     # RND arguments
     update_proportion: float = 0.25
     """proportion of exp used for predictor update"""
-    int_coef: float = 1.0
+    int_coef: float = 1.0 * 1e-2
     """coefficient of extrinsic reward"""
     ext_coef: float = 2.0
     """coefficient of intrinsic reward"""
@@ -408,6 +408,7 @@ if __name__ == "__main__":
                         global_step,
                     )
                     writer.add_scalar("charts/episodic_length", info["l"][idx], global_step)
+                    writer.add_scalar("charts/rooms_visited", info["rooms_visited"][idx], global_step)
 
         curiosity_reward_per_env = np.array(
             [discounted_reward.update(reward_per_step) for reward_per_step in curiosity_rewards.cpu().data.numpy().T]
