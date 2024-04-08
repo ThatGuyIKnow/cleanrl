@@ -35,7 +35,9 @@ class Args:
     """the entity (team) of wandb's project"""
     capture_video: bool = False
     """whether to capture videos of the agent performances (check out `videos` folder)"""
-
+    device: str = None
+    """Device to train on"""
+    
     # Algorithm specific arguments
     env_id: str = "Breakout-v5"
     """the id of the environment"""
@@ -275,8 +277,11 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
-
+    if args.device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
+    else:
+        device = torch.device(args.device)
+        
     # env setup
     envs = envpool.make(
         args.env_id,
