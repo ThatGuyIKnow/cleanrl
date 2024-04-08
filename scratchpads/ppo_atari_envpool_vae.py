@@ -39,9 +39,9 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "Breakout-v5"
     """the id of the environment"""
-    total_timesteps: int = 10000000
+    total_timesteps: int = int(1e7)
     """total timesteps of the experiments"""
-    learning_rate: float = 2.5e-4
+    learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
     num_envs: int = 128
     """the number of parallel game environments"""
@@ -72,11 +72,11 @@ class Args:
     target_kl: float = None
     """the target KL divergence threshold"""
 
-    recon_coef: float = 0.5
+    recon_coef: float = 0.1
     """Reconstruction coef loss"""
     decorr_coef: float = 0.1
     """VAE channelwise decorrelation coef loss"""
-    vae_update_freq: int = 4
+    vae_update_freq: int = 1
     """VAE update frequency"""
 
     # to be filled in runtime
