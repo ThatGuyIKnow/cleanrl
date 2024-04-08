@@ -82,7 +82,7 @@ class GridWorldTiles(abc.ABC):
         tiles = {id: self.tiles[id][tile_i] for id, tile_i in zip(ids, tile_index)}
 
         # Select the correct player tile and correct background tile
-        tiles[CellType.PLAYER] = self.tiles[CellType.PLAYER][tile_index[0], tile_index[-1]]
+        tiles[CellType.PLAYER] = self.tiles[CellType.PLAYER][tile_index[0]]
 
         tiles[CellType.FLOOR] = self.tiles[CellType.FLOOR][tile_index[0]]
         tiles[CellType.WALL] = self.tiles[CellType.WALL][tile_index[1]]
@@ -102,8 +102,8 @@ class GridWorldTiles(abc.ABC):
         tiles[CellType.KEY] = self.construct_keys(cell_size)
         tiles[CellType.DOOR] = self.construct_key_doors(cell_size)
         tiles[CellType.KEY_DOOR] = self.construct_doors(cell_size)
-        tiles[CellType.PLAYER] = self.construct_players(cell_size, tiles[CellType.FLOOR])
-
+        tiles[CellType.PLAYER] = self.construct_players(cell_size)
+        
 
 
         return tiles
@@ -189,7 +189,7 @@ class RandomLuminationTiles(GridWorldTiles):
         return self.construct_doors(cell_size, count)
 
 
-    def construct_players(self, cell_size, floor_tiles, count=10):
+    def construct_players(self, cell_size, count=10):
         base = np.zeros((cell_size, cell_size, 3), np.float32)
         triangle = np.tril(m=np.arange(1,self.cell_size*2+1))[:self.cell_size:2,:self.cell_size]
         triangle = np.rot90(np.concatenate([triangle, triangle[::-1]]))
@@ -203,9 +203,10 @@ class RandomLuminationTiles(GridWorldTiles):
         step = (end - start) / count
         arr = [base * lum for lum in np.arange(start,end,step)]
         arr = np.stack(arr, axis=0)
-        all_direction = [np.rot90(arr, -i, axes=(1,2)) for i in range(4)]
-        final_tiles = [self.mix_player_and_floor(player, floor_tiles) for player in all_direction]
-        return (np.stack(final_tiles, axis=2) * 255).astype(np.uint8)
+        all_direction = np.stack([np.rot90(arr, -i, axes=(1,2)) for i in range(4)], axis=1) * 255
+        mask = np.ones_like(all_direction) * ((all_direction == 0).sum(axis=-1) == 3)[...,None]
+        
+        return np.stack([mask, all_direction, ], axis=2).astype(np.uint8)
 
 
     def mix_player_and_floor(self, player_rgb, floor_rgb):
@@ -607,7 +608,9 @@ class Gridworld(gymnasium.Env):
             direction = self.player_directions[i]
             x *= self.cell_size
             y *= self.cell_size
-            rgb_obs[i, x:x+self.cell_size,y:y+self.cell_size] = self.cell_render[CellType.PLAYER][direction]
+            player_mask, player_sprite = self.cell_render[CellType.PLAYER][direction]
+            rgb_obs[i, x:x+self.cell_size,y:y+self.cell_size] *= player_mask
+            rgb_obs[i, x:x+self.cell_size,y:y+self.cell_size] += player_sprite
         return rgb_obs
 
     def human_render(self):
@@ -789,9 +792,6 @@ class MultiRoomS10N6GridWorld(Gridworld):
 # ################### NOISY ENVIONRMENTS #####################
 # ############################################################
 # ############################################################
-
-
-
 
 # ############################################################
 # ################### DoorKey Env. ###########################

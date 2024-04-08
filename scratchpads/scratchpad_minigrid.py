@@ -27,6 +27,7 @@ if __name__ == "__main__":
     num_envs = 16
     no_proc = 1
     e = gym.make('Visual/MultiRoomS5N4-Gridworld-v0', cell_size=14, num_envs=num_envs, render_mode='human')
+    e = visual_gridworld.NoisyGridworldWrapper(e)
     e.reset()
 
     step_count = int(2e6 / (num_envs * no_proc))
