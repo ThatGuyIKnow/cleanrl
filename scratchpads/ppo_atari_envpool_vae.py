@@ -215,18 +215,29 @@ class VAE(nn.Module):
 class Agent(nn.Module):
     def __init__(self, envs):
         super().__init__()
-        self.network = VAE(input_channels=4, latent_dim=16, latent_channels=32)
-        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
-        self.critic = layer_init(nn.Linear(512, 1), std=1)
+        self.latent_dim = 2
+        self.latent_channels = 32
+        self.latent_size = self.latent_channels * self.latent_dim
+        self.network = VAE(input_channels=4, latent_dim=self.latent_dim, latent_channels=self.latent_channels)
+        self.actor = nn.Sequential(
+            layer_init(nn.Linear(self.latent_size, 64), std=0.01),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01)
+        )
+        self.critic = nn.Sequential(
+            layer_init(nn.Linear(self.latent_size, 64), std=0.01),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=0.01)
+        )
 
     def get_value(self, x):
-        hidden = self.network.encode(x / 255.0)[0]
-        hidden = hidden.view(x.shape[0], -1)
+        mu, _ = self.network.encode(x / 255.0)
+        hidden = mu.view(x.shape[0], -1)
         return self.critic(hidden)
 
     def get_action_and_value(self, x, action=None):
-        hidden, _ = self.network.encode(x / 255.0)
-        hidden = hidden.view(x.shape[0], -1)
+        mu, _ = self.network.encode(x / 255.0)
+        hidden = mu.view(x.shape[0], -1)
         logits = self.actor(hidden)
         probs = Categorical(logits=logits)
         if action is None:
