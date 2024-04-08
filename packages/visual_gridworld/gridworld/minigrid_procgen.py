@@ -35,6 +35,7 @@ class Direction(Enum):
         return [(-1,0),(0,1),(1,0),(0,-1)]
 
 class CellType(Enum):
+    NOTHING=-1
     FLOOR=0
     WALL=1
     DOOR=2
@@ -192,6 +193,8 @@ class RandomLuminationTiles(GridWorldTiles):
         base = np.zeros((cell_size, cell_size, 3), np.float32)
         triangle = np.tril(m=np.arange(1,self.cell_size*2+1))[:self.cell_size:2,:self.cell_size]
         triangle = np.rot90(np.concatenate([triangle, triangle[::-1]]))
+        if triangle.shape[-1] != self.cell_size:
+            triangle = np.delete(triangle, self.cell_size//2, axis=-1)
         i = np.where(triangle != 0)
         triangle[i] = 1.
         base[:,:,0] = triangle
@@ -263,7 +266,7 @@ class MultiRoomGridworld(GridWorldGeneration):
         height = self.height
         room_count = self.room_count
         max_room_size = self.max_room_size
-        grid = np.zeros([width, height])
+        grid = -np.ones([width, height])
         room_list, door_list = self.get_room_map(width, height, room_count, max_room_size, 8)
         # room_list = [[(10, 0), (5, 4)],]
         for (x, y), (w, h) in room_list:
@@ -285,7 +288,7 @@ class MultiRoomGridworld(GridWorldGeneration):
 
     def get_room_map(self, width, height, room_count, max_room_size, max_tries):
         def aux(room_list, door_pos_list, entry_face: Direction):
-            dims = self.random.choice(max_room_size - 4, (2,)) + 4
+            dims = self.random.choice(max_room_size - 4 + 1, (2,)) + 4
             door_pos = door_pos_list[-1]
             if entry_face is None:
                 left, top = door_pos
@@ -403,7 +406,7 @@ class Gridworld(gymnasium.Env):
             self.render = self.rgb_render
 
         self.rgb_obs = np.zeros((num_envs, *self.screen_size, 3), dtype=np.uint8)
-        self.grids = np.zeros((num_envs, width, height), dtype=np.uint8)
+        self.grids = np.zeros((num_envs, width, height), dtype=np.int8)
         self.room_entrances = np.zeros((num_envs, door_count, 2), dtype=np.int32)
         self.player_positions = np.zeros((num_envs, 2), dtype=np.int32)
         self.last_player_positions = np.zeros((num_envs, 2), dtype=np.int32)
@@ -626,7 +629,10 @@ class Gridworld(gymnasium.Env):
         for i in range(self.width * self.height):
             x, y = i % self.width, i // self.height
             type = self.grids[env_index, x, y]
-            arr.append(self.cell_render[CellType(type)])
+            if type == -1:
+                arr.append(np.zeros((self.cell_size, self.cell_size, 3), dtype=np.uint8))
+            else:
+                arr.append(self.cell_render[CellType(type)])
         arr = np.concatenate(arr, axis=0)
         arr = np.concatenate(np.split(arr, self.height), axis=1)
         return arr
@@ -651,6 +657,20 @@ class Gridworld(gymnasium.Env):
             self.handle_input()  # Call the input handling method
             self.render()
             self.clock.tick(60)  # Limit the frame rate to 60 FPS
+
+
+# ############################################################
+# ############################################################
+# ################### ENVIONRMENTS #####################
+# ############################################################
+# ############################################################
+
+
+
+
+# ############################################################
+# ################### DoorKey Env. ###########################
+# ############################################################
 
 
 class DoorKey5x5Gridworld(Gridworld):
@@ -709,6 +729,74 @@ class DoorKey16x16Gridworld(Gridworld):
         grid_gen = DoorKeyGridworld(random, width=width, height=height)
         random_tile = RandomLuminationTiles(cell_size, random)
         super().__init__(width, height, 1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed)
+
+
+# ############################################################
+# ################### MultiRoom Env. ######################
+# ############################################################
+
+class MultiRoomS4N2GridWorld(Gridworld):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    env_name = "MultiRoomS4N2-Gridworld-v0"
+    room_count = 2
+    max_room_size = 4
+    max_episode_steps= room_count * 20
+
+    def __init__(self, cell_size = 30, num_envs=1, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+        width = height = self.room_count * self.max_room_size
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
+        random = np.random.RandomState(seed)
+        grid_gen = MultiRoomGridworld(random, width=width, height=height, room_count=self.room_count, max_room_size=self.max_room_size)
+        random_tile = RandomLuminationTiles(cell_size, random)
+        super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed)
+
+class MultiRoomS5N4GridWorld(Gridworld):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    env_name = "MultiRoomS5N4-Gridworld-v0"
+    room_count = 4
+    max_room_size = 5
+    max_episode_steps= room_count * 20
+
+    def __init__(self, cell_size = 30, num_envs=1, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+        width = height = self.room_count * self.max_room_size
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
+        random = np.random.RandomState(seed)
+        grid_gen = MultiRoomGridworld(random, width=width, height=height, room_count=self.room_count, max_room_size=self.max_room_size)
+        random_tile = RandomLuminationTiles(cell_size, random)
+        super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed)
+
+class MultiRoomS10N6GridWorld(Gridworld):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    env_name = "MultiRoomS10N6-Gridworld-v0"
+    room_count = 6
+    max_room_size = 10
+    max_episode_steps= room_count * 20
+
+    def __init__(self, cell_size = 30, num_envs=1, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+        width = height = self.room_count * self.max_room_size
+        if max_steps is None:
+            self.max_episode_steps = 10 * width**2
+        random = np.random.RandomState(seed)
+        grid_gen = MultiRoomGridworld(random, width=width, height=height, room_count=self.room_count, max_room_size=self.max_room_size)
+        random_tile = RandomLuminationTiles(cell_size, random)
+        super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed)
+
+
+# ############################################################
+# ############################################################
+# ################### NOISY ENVIONRMENTS #####################
+# ############################################################
+# ############################################################
+
+
+
+
+# ############################################################
+# ################### DoorKey Env. ###########################
+# ############################################################
+
 
 class NoisyDoorKey6x6Gridworld(Gridworld):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
