@@ -162,31 +162,29 @@ class VAE(nn.Module):
         self.latent_dim = latent_dim
         self.latent_channels = latent_channels
         
+        self.cnn_out = 7*7*64
+
         # Encoder
         self.encoder = nn.Sequential(
-            layer_init(nn.Conv2d(input_channels, 32, 6, stride=3)),
+            layer_init(nn.Conv2d(input_channels, 32, 8, stride=4)),
             nn.ReLU(),
             layer_init(nn.Conv2d(32, 64, 4, stride=2)),
             nn.ReLU(),
-            layer_init(nn.Conv2d(64, 128, 4, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(128, 128, 2)),
+            layer_init(nn.Conv2d(64, 64, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
         )
-        self.fc_mu = layer_init(nn.Linear(256 * 2 * 2 * 2, latent_dim * latent_channels))
-        self.fc_log_var = layer_init(nn.Linear(256 * 2 * 2 * 2, latent_dim * latent_channels))
+        self.fc_mu = layer_init(nn.Linear(self.cnn_out, latent_dim * latent_channels))
+        self.fc_log_var = layer_init(nn.Linear(self.cnn_out, latent_dim * latent_channels))
         
         # Decoder
-        self.decoder_input = layer_init(nn.Linear(latent_dim * latent_channels, 256 * 2 * 2 * 2))
+        self.decoder_input = layer_init(nn.Linear(latent_dim * latent_channels, self.cnn_out))
         self.decoder = nn.Sequential(
-            layer_init(nn.ConvTranspose2d(128, 128, 2)),
+            layer_init(nn.ConvTranspose2d(64, 64, 3, stride=1)),
             nn.ReLU(),
-            layer_init(nn.ConvTranspose2d(128, 64, 4, stride=2)),
+            layer_init(nn.ConvTranspose2d(64, 32, 4, stride=2)),
             nn.ReLU(),
-            layer_init(nn.ConvTranspose2d(64, 32, 5, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.ConvTranspose2d(32, 1, 6, stride=3)),
+            layer_init(nn.ConvTranspose2d(32, 1, 8, stride=4)),
             nn.Sigmoid(),
         )
 
@@ -206,7 +204,7 @@ class VAE(nn.Module):
     def decode(self, z):
         z = z.view(-1, self.latent_dim * self.latent_channels)
         h = self.decoder_input(z)
-        h = h.view(-1, 128, 4, 4)
+        h = h.view(-1, 64, 7, 7)
         return self.decoder(h)
 
     def forward(self, x):
