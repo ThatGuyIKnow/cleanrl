@@ -43,7 +43,7 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 2.5e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 8
+    num_envs: int = 128
     """the number of parallel game environments"""
     num_steps: int = 128
     """the number of steps to run in each environment per policy rollout"""
@@ -76,6 +76,8 @@ class Args:
     """Reconstruction coef loss"""
     decorr_coef: float = 0.1
     """VAE channelwise decorrelation coef loss"""
+    vae_update_freq: int = 4
+    """VAE update frequency"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -398,18 +400,22 @@ if __name__ == "__main__":
                 else:
                     v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
-                # Reconstruction loss
-                mu, log_var = agent.network.encode(b_obs[b_inds] / 255.)
-                z = agent.network.reparameterize(mu, log_var)
-                recon = agent.network.decode(z)
-
-                rc_loss = F.huber_loss(recon, b_obs[b_inds, -1:] / 255.)
-                kl_div_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
-                c_decorr_loss = channelwise_covariance_loss(mu)
-
-
                 entropy_loss = entropy.mean()
-                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef + args.recon_coef * (rc_loss + kl_div_loss + args.decorr_coef * c_decorr_loss)
+                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
+
+
+                if global_step % args.vae_update_freq == 0:
+                    # Reconstruction loss
+                    mu, log_var = agent.network.encode(b_obs[b_inds] / 255.)
+                    z = agent.network.reparameterize(mu, log_var)
+                    recon = agent.network.decode(z)
+
+                    rc_loss = F.huber_loss(recon, b_obs[b_inds, -1:] / 255.)
+                    kl_div_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+                    c_decorr_loss = channelwise_covariance_loss(mu)
+
+                    loss += args.recon_coef * (rc_loss + kl_div_loss + args.decorr_coef * c_decorr_loss)
+
 
                 optimizer.zero_grad()
                 loss.backward()
