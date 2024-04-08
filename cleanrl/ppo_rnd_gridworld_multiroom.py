@@ -40,7 +40,7 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "Visual/MultiRoomS5N4-Gridworld-v0"
     """the id of the environment"""
-    total_timesteps: int = int(13e6)
+    total_timesteps: int = int(1e7)
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
