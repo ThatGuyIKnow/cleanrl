@@ -43,7 +43,7 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 128
+    num_envs: int = 16
     """the number of parallel game environments"""
     num_steps: int = 128
     """the number of steps to run in each environment per policy rollout"""
@@ -53,7 +53,7 @@ class Args:
     """the discount factor gamma"""
     gae_lambda: float = 0.95
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 4
+    num_minibatches: int = 64
     """the number of mini-batches"""
     update_epochs: int = 4
     """the K epochs to update the policy"""
@@ -72,11 +72,11 @@ class Args:
     target_kl: float = None
     """the target KL divergence threshold"""
 
-    recon_coef: float = 0.1
+    recon_coef: float = 0.05
     """Reconstruction coef loss"""
     decorr_coef: float = 0.1
     """VAE channelwise decorrelation coef loss"""
-    vae_update_freq: int = 1
+    vae_update_freq: int = 1    
     """VAE update frequency"""
 
     # to be filled in runtime
@@ -227,7 +227,7 @@ class Agent(nn.Module):
         self.critic = nn.Sequential(
             layer_init(nn.Linear(self.latent_size, 64), std=0.01),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=0.01)
+            layer_init(nn.Linear(64, 1), std=0.01) 
         )
 
     def get_value(self, x):
