@@ -16,7 +16,8 @@ from gym.wrappers.normalize import RunningMeanStd
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
-import visual_gridworld # absolute import
+import visual_gridworld
+from visual_gridworld.gridworld.minigrid_procgen import GridworldResizeObservation # absolute import
 
 @dataclass
 class Args:
@@ -24,21 +25,27 @@ class Args:
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
+    fixed: bool = False
+    """Fix the gridworld to a single world"""
     torch_deterministic: bool = True
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
+    device: str = None
+    """Device to train on if cuda is used"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
     wandb_project_name: str = "cleanRL"
     """the wandb's project name"""
     wandb_entity: str = None
     """the entity (team) of wandb's project"""
+    wandb_tags: tuple[str] = tuple('wandb', )
+    """the entity (team) of wandb's project"""
     capture_video: bool = False
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/NoisyDoorKey6x6-Gridworld-v0"
+    env_id: str = "Visual/DoorKey6x6-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
@@ -269,6 +276,7 @@ class RewardForwardFilter:
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
+    print(args.wandb_tags[0].split(','))
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
@@ -280,6 +288,7 @@ if __name__ == "__main__":
             project=args.wandb_project_name,
             entity=args.wandb_entity,
             sync_tensorboard=True,
+            tags=args.wandb_tags[0].split(','),
             config=vars(args),
             name=run_name,
             monitor_gym=True,
@@ -297,15 +306,19 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
-
+    if args.device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
+    else:
+        device = torch.device(args.device if torch.cuda.is_available() and args.cuda else "cpu")
     # env setup
     envs = gym.make(
         args.env_id,
         num_envs=args.num_envs,
         cell_size=14,
+        fixed=args.fixed,
         seed=args.seed,
     )
+    envs = GridworldResizeObservation(envs, (84, 84))
     envs.num_envs = args.num_envs
     envs = RecordEpisodeStatistics(envs)
     envs = FirstChannelPositionWrapper(envs)
