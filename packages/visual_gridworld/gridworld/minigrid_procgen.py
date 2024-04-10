@@ -1033,7 +1033,9 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
             dims==4
         ), f"Expected the observation space to have 4 dimensions, got: {dims}"
 
-        obs_shape = self.shape + env.observation_space.shape[2:]
+        E, _, _, C = env.observation_space.shape
+        W, H = self.shape
+        obs_shape = (E, W, H, C)
         self.observation_space = gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
 
     def observation(self, observation):

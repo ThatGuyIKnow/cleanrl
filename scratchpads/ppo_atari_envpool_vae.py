@@ -200,7 +200,7 @@ class VAE(nn.Module):
 
     def reparameterize(self, mu, log_var):
         std = torch.exp(0.5 * log_var)
-        eps = torch.randn_like(std)
+        eps = torch.randn(std.shape[:-1])[...,None]
         return mu + eps * std
 
     def decode(self, z):

@@ -33,25 +33,25 @@ device_queue = queue.Queue()
 for var in devices:
     device_queue.put(var)
 
-base_cmd = f"python cleanrl/ppo_rnd_gridworld.py -seed {args.seed}"
+base_cmd = f"python cleanrl/ppo_rnd_gridworld.py --seed {args.seed}"
 if args.track:
     base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
 env_ids = [
     'Visual/DoorKey5x5-Gridworld-v0',
-    'Visual/DoorKey6x6-Gridworld-v0',
-    'Visual/DoorKey8x8-Gridworld-v0',
-    'Visual/DoorKey16x16-Gridworld-v0',
-    'Visual/NoisyDoorKey5x5-Gridworld-v0',
-    'Visual/NoisyDoorKey6x6-Gridworld-v0',
-    'Visual/NoisyDoorKey8x8-Gridworld-v0',
-    'Visual/NoisyDoorKey16x16-Gridworld-v0',
-    'Visual/MultiRoomS4N2-Gridworld-v0',
-    'Visual/MultiRoomS5N4-Gridworld-v0',
-    'Visual/MultiRoomS10N6-Gridworld-v0',
-    'Visual/NoisyMultiRoomS4N2-Gridworld-v0',
-    'Visual/NoisyMultiRoomS5N4-Gridworld-v0',
-    'Visual/NoisyMultiRoomS10N6-Gridworld-v0',
+    # 'Visual/DoorKey6x6-Gridworld-v0',
+    # 'Visual/DoorKey8x8-Gridworld-v0',
+    # 'Visual/DoorKey16x16-Gridworld-v0',
+    # 'Visual/NoisyDoorKey5x5-Gridworld-v0',
+    # 'Visual/NoisyDoorKey6x6-Gridworld-v0',
+    # 'Visual/NoisyDoorKey8x8-Gridworld-v0',
+    # 'Visual/NoisyDoorKey16x16-Gridworld-v0',
+    # 'Visual/MultiRoomS4N2-Gridworld-v0',
+    # 'Visual/MultiRoomS5N4-Gridworld-v0',
+    # 'Visual/MultiRoomS10N6-Gridworld-v0',
+    # 'Visual/NoisyMultiRoomS4N2-Gridworld-v0',
+    # 'Visual/NoisyMultiRoomS5N4-Gridworld-v0',
+    # 'Visual/NoisyMultiRoomS10N6-Gridworld-v0',
 ]
 
 _tags = [
@@ -83,12 +83,12 @@ if args.include_fixed:
 if args.use_tag:
     commands = [f'{cmd} --wandb-tags {tag}' for cmd, tag in zip(commands, tags)]
 
-commands = [f'{cmd} --device ' + '{}' for cmd in commands]
+commands = [f'{cmd} --device ' + '{0}' for cmd in commands]
 
 print('\n'.join(commands))
 
 # Number of concurrent commands you want to run. Adjust as per your needs.
-max_workers = 2
+max_workers = 4
 
 def run_command(base_cmd):
     # Get a variable from the queue
@@ -97,7 +97,7 @@ def run_command(base_cmd):
     try:
         # Format the command with the variable
         cmd = base_cmd.format(var)
-        
+
         # Execute the command
         result = subprocess.run(cmd, shell=True, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # Return the standard output
