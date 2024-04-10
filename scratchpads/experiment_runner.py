@@ -39,19 +39,19 @@ if args.track:
 
 env_ids = [
     'Visual/DoorKey5x5-Gridworld-v0',
-    # 'Visual/DoorKey6x6-Gridworld-v0',
-    # 'Visual/DoorKey8x8-Gridworld-v0',
-    # 'Visual/DoorKey16x16-Gridworld-v0',
-    # 'Visual/NoisyDoorKey5x5-Gridworld-v0',
-    # 'Visual/NoisyDoorKey6x6-Gridworld-v0',
-    # 'Visual/NoisyDoorKey8x8-Gridworld-v0',
-    # 'Visual/NoisyDoorKey16x16-Gridworld-v0',
-    # 'Visual/MultiRoomS4N2-Gridworld-v0',
-    # 'Visual/MultiRoomS5N4-Gridworld-v0',
-    # 'Visual/MultiRoomS10N6-Gridworld-v0',
-    # 'Visual/NoisyMultiRoomS4N2-Gridworld-v0',
-    # 'Visual/NoisyMultiRoomS5N4-Gridworld-v0',
-    # 'Visual/NoisyMultiRoomS10N6-Gridworld-v0',
+    'Visual/DoorKey6x6-Gridworld-v0',
+    'Visual/DoorKey8x8-Gridworld-v0',
+    'Visual/DoorKey16x16-Gridworld-v0',
+    'Visual/NoisyDoorKey5x5-Gridworld-v0',
+    'Visual/NoisyDoorKey6x6-Gridworld-v0',
+    'Visual/NoisyDoorKey8x8-Gridworld-v0',
+    'Visual/NoisyDoorKey16x16-Gridworld-v0',
+    'Visual/MultiRoomS4N2-Gridworld-v0',
+    'Visual/MultiRoomS5N4-Gridworld-v0',
+    'Visual/MultiRoomS10N6-Gridworld-v0',
+    'Visual/NoisyMultiRoomS4N2-Gridworld-v0',
+    'Visual/NoisyMultiRoomS5N4-Gridworld-v0',
+    'Visual/NoisyMultiRoomS10N6-Gridworld-v0',
 ]
 
 _tags = [
