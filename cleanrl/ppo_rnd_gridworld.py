@@ -45,7 +45,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/DoorKey5x5-Gridworld-v0"
+    env_id: str = "Visual/DoorKey16x16-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
@@ -395,6 +395,7 @@ if __name__ == "__main__":
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, done, truncated, info = envs.step(action.cpu().numpy())
+            done = done | truncated
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
             rnd_next_obs = (

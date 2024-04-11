@@ -44,6 +44,5 @@ for env_cls in envs:
     register(
         id=f"Visual/{env_cls.env_name}",
         entry_point=f"visual_gridworld.gridworld.minigrid_procgen:{env_cls.__name__}",
-        max_episode_steps=env_cls.max_episode_steps,
     )
 
