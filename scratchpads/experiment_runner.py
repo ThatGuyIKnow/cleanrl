@@ -19,9 +19,10 @@ class Args:
     """avaliable device ids"""
     include_fixed: bool = True
     """avaliable device ids"""
+    include_rnd: bool = True
+    """avaliable device ids"""
     seed: int = 42
     """seed"""
-    
 
 args = tyro.cli(Args)
 
@@ -42,16 +43,16 @@ env_ids = [
     'Visual/DoorKey6x6-Gridworld-v0',
     'Visual/DoorKey8x8-Gridworld-v0',
     'Visual/DoorKey16x16-Gridworld-v0',
-    'Visual/NoisyDoorKey5x5-Gridworld-v0',
-    'Visual/NoisyDoorKey6x6-Gridworld-v0',
-    'Visual/NoisyDoorKey8x8-Gridworld-v0',
-    'Visual/NoisyDoorKey16x16-Gridworld-v0',
+    # 'Visual/NoisyDoorKey5x5-Gridworld-v0',
+    # 'Visual/NoisyDoorKey6x6-Gridworld-v0',
+    # 'Visual/NoisyDoorKey8x8-Gridworld-v0',
+    # 'Visual/NoisyDoorKey16x16-Gridworld-v0',
     'Visual/MultiRoomS4N2-Gridworld-v0',
     'Visual/MultiRoomS5N4-Gridworld-v0',
     'Visual/MultiRoomS10N6-Gridworld-v0',
-    'Visual/NoisyMultiRoomS4N2-Gridworld-v0',
-    'Visual/NoisyMultiRoomS5N4-Gridworld-v0',
-    'Visual/NoisyMultiRoomS10N6-Gridworld-v0',
+    # 'Visual/NoisyMultiRoomS4N2-Gridworld-v0',
+    # 'Visual/NoisyMultiRoomS5N4-Gridworld-v0',
+    # 'Visual/NoisyMultiRoomS10N6-Gridworld-v0',
 ]
 
 _tags = [
@@ -59,16 +60,16 @@ _tags = [
     "doorkey6x6",
     "doorkey8x8",
     "doorkey16x16",
-    "doorkey5x5,noisy",
-    "doorkey6x6,noisy",
-    "doorkey8x8,noisy",
-    "doorkey16x16,noisy",
+    # "doorkey5x5,noisy",
+    # "doorkey6x6,noisy",
+    # "doorkey8x8,noisy",
+    # "doorkey16x16,noisy",
     "multiroomS4N2",
     "multiroomS5N4",
     "multiroomS10N6",
-    "multiroomS4N2,noisy",
-    "multiroomS5N4,noisy",
-    "multiroomS10N6,noisy",
+    # "multiroomS4N2,noisy",
+    # "multiroomS5N4,noisy",
+    # "multiroomS10N6,noisy",
 ]
 tags = [f'\'{t}\'' for t in _tags]
 
@@ -80,8 +81,11 @@ commands = [f'{base_cmd} --env-id {id}' for id in env_ids]
 if args.include_fixed:
     commands.extend([f'{base_cmd} --env-id {id} --fixed' for id in env_ids])
 
-if args.use_tag:
-    commands = [f'{cmd} --wandb-tags {tag}' for cmd, tag in zip(commands, tags)]
+if args.include_rnd:
+    commands += [f'{cmd} --wandb-tags {tag} --int_coef 0' for cmd, tag in zip(commands, tags)]
+    tags = [f'\'{t},rnd\'' for t in tags] + tags
+else:
+    commands = [f'{cmd} --wandb-tags {tag} --int_coef 0' for cmd, tag in zip(commands, tags)]
 
 commands = [f'{cmd} --device ' + '{0}' for cmd in commands]
 

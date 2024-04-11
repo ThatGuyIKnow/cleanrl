@@ -413,7 +413,7 @@ class Gridworld(gymnasium.Env):
         self.last_player_positions = np.zeros((num_envs, 2), dtype=np.int32)
         self.player_directions = np.zeros((num_envs,), dtype=np.uint8)
 
-        self.step_counts = np.zeros((num_envs, ), dtype=np.uint8)
+        self.step_counts = np.zeros((num_envs, ), dtype=np.uint16)
         self.visited_rooms = [set(), ] * num_envs
         self.current_rooms = np.zeros((num_envs, ), dtype=np.uint8)
 
@@ -426,6 +426,8 @@ class Gridworld(gymnasium.Env):
             'current_room': np.zeros((num_envs, )),
             'episodic_return': np.zeros((num_envs, )),
         }
+
+        self.max_c = 0
 
 
     def handle_single_action(self, action, env_index):
@@ -440,7 +442,6 @@ class Gridworld(gymnasium.Env):
             self.player_directions[env_index] = Direction.turn_left(self.player_directions[env_index])
         elif action == 3:
             self.use(env_index)
-
     def step(self, actions):
         if self.next_dones.any():
             self.step_counts *= ~self.next_dones
@@ -451,14 +452,14 @@ class Gridworld(gymnasium.Env):
 
         for i, action in enumerate(actions):
             self.handle_single_action(action, i)
-
+        self.max_c = max(self.max_c, self.step_counts.max())
         self.step_counts += 1
         truncated = self.step_counts == self.max_time_step
         self.next_dones = self.dones | truncated
 
         observation = self.rgb_render()
         reward = (1. - 0.9 * (self.step_counts / self.max_time_step)) * self.dones
-        self.info['step_count'] = self.step_counts
+        self.info['step_count'] = self.step_counts.copy()
         self.info['episodic_return'] += reward
         self.info['current_room'] = self.current_rooms
         self.info['rooms_visited'] = [len(visited_rooms) for visited_rooms in self.visited_rooms]
