@@ -124,7 +124,7 @@ if __name__ == '__main__':
     all_options.append(Option('env_id', env_tags, env_ids, '--env-id'))
 
     if args.include_fixed:
-        all_options.append(Option('include_fixed', ['random','fixed_seed'], [False, True], '--fixed'))
+        all_options.append(Option('include_fixed', ['random','fixed_seed'], ['--no-fixed', '--fixed'], ''))
 
     if args.include_rnd:
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
