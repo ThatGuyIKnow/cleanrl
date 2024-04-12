@@ -4,6 +4,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 
+import cv2
 import gymnasium as gym
 import numpy as np
 import torch
@@ -45,7 +46,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/MultiRoomS10N6-Gridworld-v0"
+    env_id: str = "Visual/DoorKey6x6-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
@@ -97,6 +98,12 @@ class Args:
     """margin for early stopping"""
     early_stopping_patience: int = int(1e5)
     """patience for early stopping"""
+
+    # masking
+    use_template: bool = False
+    """use templating approach"""
+    template_size: int = 3
+    """masking template cell size"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -215,7 +222,6 @@ class Agent(nn.Module):
         features = self.extra_layer(hidden)
         return self.critic_ext(features + hidden), self.critic_int(features + hidden)
 
-
 class RNDModel(nn.Module):
     def __init__(self, input_size, output_size):
         super().__init__()
@@ -226,7 +232,7 @@ class RNDModel(nn.Module):
         feature_output = 7 * 7 * 64
 
         # Prediction network
-        self.predictor = nn.Sequential(
+        self._predictor = nn.Sequential(
             layer_init(nn.Conv2d(in_channels=3, out_channels=32, kernel_size=8, stride=4)),
             nn.LeakyReLU(),
             layer_init(nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2)),
@@ -242,7 +248,7 @@ class RNDModel(nn.Module):
         )
 
         # Target network
-        self.target = nn.Sequential(
+        self._target = nn.Sequential(
             layer_init(nn.Conv2d(in_channels=3, out_channels=32, kernel_size=8, stride=4)),
             nn.LeakyReLU(),
             layer_init(nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2)),
@@ -254,12 +260,52 @@ class RNDModel(nn.Module):
         )
 
         # target network is not trainable
-        for param in self.target.parameters():
+        for param in self._target.parameters():
             param.requires_grad = False
+        b, w, h = envs.get_grid().shape
+        self.shape = (w, h)
+        self.obs_shape = envs.observation_space.shape[-2:]
+        self.templates = self.construct_templates(self.shape)
 
-    def forward(self, next_obs):
-        target_feature = self.target(next_obs)
-        predict_feature = self.predictor(next_obs)
+    def construct_templates(self, size):
+        w, h = size
+        x, y = self.obs_shape
+        lin_w = w - np.absolute(np.linspace(1-w, w-1, 2*w-1))
+        lin_h = h - np.absolute(np.linspace(1-h, h-1, 2*h-1))
+        t = np.outer(lin_w, lin_h)
+        return cv2.resize(t, (2*x, 2*y), interpolation=cv2.INTER_NEAREST_EXACT)
+    
+    def make_template(self, positions):
+        masks = []
+        w,h = self.shape
+        for pos in positions:
+            x, y = w-pos[0]-1, h-pos[1]-1
+            x = int(x*self.obs_shape[0] / self.shape[0])
+            y = int(y*self.obs_shape[1] / self.shape[1])
+            masks.append(self.templates[y:y+self.obs_shape[1],x:x+self.obs_shape[0]])
+        m = np.stack(masks, axis=-1)
+        m =  m  > (w * (w - args.template_size))
+        return torch.Tensor(m.swapaxes(-1, 0))[:, None]
+
+    def predictor(self, x, pos):
+        if not args.use_template:
+            return self._predictor(x)
+        m = self.make_template(pos)
+        return self._predictor(x * m)
+
+    def target(self, x, pos):
+        if not args.use_template:
+            return self._target(x)
+        m = self.make_template(pos)
+        return self._target(x * m)
+
+    def forward(self, next_obs, pos):
+        if args.use_template:
+            m = self.make_template(pos)
+            next_obs *= m
+
+        target_feature = self._target(next_obs)
+        predict_feature = self._predictor(next_obs)
 
         return predict_feature, target_feature
 
@@ -334,7 +380,7 @@ if __name__ == "__main__":
     obs_shape = envs.observation_space.shape
     agent = Agent(envs).to(device)
     rnd_model = RNDModel(4, envs.single_action_space.n).to(device)
-    combined_parameters = list(agent.parameters()) + list(rnd_model.predictor.parameters())
+    combined_parameters = list(agent.parameters()) + list(rnd_model._predictor.parameters())
     optimizer = optim.Adam(
         combined_parameters,
         lr=args.learning_rate,
@@ -347,6 +393,7 @@ if __name__ == "__main__":
 
     # ALGO Logic: Storage setup
     obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
+    player_pos = torch.zeros((args.num_steps, args.num_envs, 2), dtype=torch.int32).to(device)
     actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
     logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
@@ -387,6 +434,7 @@ if __name__ == "__main__":
         for step in range(0, args.num_steps):
             global_step += 1 * args.num_envs
             obs[step] = next_obs
+            player_pos[step] = torch.Tensor(envs.get_player_position())
             dones[step] = next_done
 
             # ALGO LOGIC: action logic
@@ -412,8 +460,8 @@ if __name__ == "__main__":
                     / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
                 ).clip(-5, 5)
             ).float()
-            target_next_feature = rnd_model.target(rnd_next_obs)
-            predict_next_feature = rnd_model.predictor(rnd_next_obs)
+            target_next_feature = rnd_model.target(rnd_next_obs, player_pos[step])
+            predict_next_feature = rnd_model.predictor(rnd_next_obs, player_pos[step])
             curiosity_rewards[step] = ((target_next_feature - predict_next_feature).pow(2).sum(1) / 2).data
             for idx, d in enumerate(done):
                 if d:
@@ -430,6 +478,7 @@ if __name__ == "__main__":
                         global_step,
                     )
                     writer.add_scalar("charts/episodic_length", info["l"][idx], global_step)
+                    writer.add_scalar("charts/rooms_visited", info["rooms_visited"][idx], global_step)
 
                     if args.max_reward is not None and \
                             args.max_reward > epi_ret and \
@@ -484,6 +533,7 @@ if __name__ == "__main__":
 
         # flatten the batch
         b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
+        b_player_pos = player_pos.reshape((-1, 2))
         b_logprobs = logprobs.reshape(-1)
         b_actions = actions.reshape(-1)
         b_ext_advantages = ext_advantages.reshape(-1)
@@ -513,7 +563,7 @@ if __name__ == "__main__":
                 end = start + args.minibatch_size
                 mb_inds = b_inds[start:end]
 
-                predict_next_state_feature, target_next_state_feature = rnd_model(rnd_next_obs[mb_inds])
+                predict_next_state_feature, target_next_state_feature = rnd_model(rnd_next_obs[mb_inds], b_player_pos[mb_inds])
                 forward_loss = F.mse_loss(
                     predict_next_state_feature, target_next_state_feature.detach(), reduction="none"
                 ).mean(-1)

@@ -20,10 +20,12 @@ class Args:
     """avaliable device ids"""
     include_fixed: bool = True
     """avaliable device ids"""
-    include_rnd: bool = True
+    include_none_rnd: bool = False
     """avaliable device ids"""
     include_noisy: bool = False
     """avaliable device ids"""
+    include_template: bool = True
+    """avaiable"""
     seed: int = 42
     """seed"""
     max_workers: int = 4
@@ -126,10 +128,11 @@ if __name__ == '__main__':
     if args.include_fixed:
         all_options.append(Option('include_fixed', ['random','fixed_seed'], ['--no-fixed', '--fixed'], ''))
 
-    if args.include_rnd:
+    if args.include_template:
+        all_options.append(Option('include_template', ['template',''], ['--use-template', '--no-use-template'], ''))
+
+    if args.include_none_rnd:
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
-    else:
-        base_cmd += ' --int-coef 0'
 
 
     commands = construct_all_commands(base_cmd, all_options)

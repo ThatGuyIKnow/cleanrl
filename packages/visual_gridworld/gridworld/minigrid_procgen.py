@@ -442,13 +442,25 @@ class Gridworld(gymnasium.Env):
             self.player_directions[env_index] = Direction.turn_left(self.player_directions[env_index])
         elif action == 3:
             self.use(env_index)
+
+    def get_info(self):
+        return {k: v.copy() for k, v in self.info.items() }
+
     def step(self, actions):
         for i, action in enumerate(actions):
             self.handle_single_action(action, i)
         self.max_c = max(self.max_c, self.step_counts.max())
         self.step_counts += 1
         truncated = self.step_counts == self.max_time_step
-        self.next_dones = self.dones | truncated
+        dones = self.dones.copy()
+        self.next_dones = dones | truncated
+        reward = self.get_reward(self.step_counts, self.max_time_step) * dones
+        self.info['step_count'] = self.step_counts.copy()
+        self.info['episodic_return'] += reward 
+        self.info['current_room'] = self.current_rooms
+        self.info['rooms_visited'] = np.array([len(visited_rooms) for visited_rooms in self.visited_rooms])
+
+        info = self.get_info()
 
         if self.next_dones.any():
             self.step_counts *= ~self.next_dones
@@ -458,17 +470,17 @@ class Gridworld(gymnasium.Env):
             self.next_dones = self.next_dones & False
 
         observation = self.rgb_render()
-        reward = self.get_reward(self.step_counts, self.max_time_step) * self.dones
-        self.info['step_count'] = self.step_counts.copy()
-        self.info['episodic_return'] += reward
-        self.info['current_room'] = self.current_rooms
-        self.info['rooms_visited'] = [len(visited_rooms) for visited_rooms in self.visited_rooms]
-
-        return observation, reward, self.dones, truncated, self.info
+        return observation, reward, dones, truncated, info
 
     def get_reward(self, step_counts, max_step):
         return (1. - 0.9 * (step_counts / max_step))
 
+    def get_player_position(self):
+        return self.player_positions.copy()
+    
+    def get_grid(self):
+        return self.grids.copy()
+    
     def reset(self, seed = None, options = None):
         super().reset(seed=seed)
         # We need the following line to seed self.np_random
@@ -857,6 +869,8 @@ class NoisyDoorKey5x5Gridworld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
+        self.get_player_position = env.get_player_position
+        self.get_grid = env.get_grid
 
 class NoisyDoorKey6x6Gridworld(gymnasium.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
@@ -879,6 +893,8 @@ class NoisyDoorKey6x6Gridworld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
+        self.get_player_position = env.get_player_position
+        self.get_grid = env.get_grid
 
 class NoisyDoorKey8x8Gridworld(gymnasium.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
@@ -901,6 +917,8 @@ class NoisyDoorKey8x8Gridworld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
+        self.get_player_position = env.get_player_position
+        self.get_grid = self.env.get_grid
 
 
 
@@ -925,7 +943,8 @@ class NoisyDoorKey16x16Gridworld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
-
+        self.get_player_position = self.env.get_player_position
+        self.get_grid = self.env.get_grid
 
 
 
@@ -953,6 +972,8 @@ class NoisyMultiRoomS4N2GridWorld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
+        self.get_player_position = env.get_player_position
+        self.get_grid = self.env.get_grid
 
 
 
@@ -976,6 +997,8 @@ class NoisyMultiRoomS5N4GridWorld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
+        self.get_player_position = self.env.get_player_position
+        self.get_grid = self.env.get_grid
 
 
 
@@ -999,6 +1022,8 @@ class NoisyMultiRoomS10N6GridWorld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
+        self.get_player_position = self.env.get_player_position
+        self.get_grid = self.env.get_grid
 
 
 
@@ -1053,6 +1078,8 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
         W, H = self.shape
         obs_shape = (E, W, H, C)
         self.observation_space = gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+        self.get_player_position = env.get_player_position
+        self.get_grid = self.env.get_grid
 
     def observation(self, observation):
         """Updates the observations by resizing the observation to shape given by :attr:`shape`.
@@ -1077,7 +1104,7 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
         observation = observation.transpose(1,2,3,0).reshape((W, H, C * B))
 
         observation = cv2.resize(
-            observation, self.shape[::-1], interpolation=cv2.INTER_NEAREST
+            observation, self.shape[::-1], interpolation=cv2.INTER_NEAREST_EXACT
         )
         
         observation = observation.reshape((*self.shape[::-1], C, B)).transpose(3, 0, 1, 2)
