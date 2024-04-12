@@ -77,6 +77,7 @@ def construct_all_commands(base_cmd: str, options: List[Option]):
         opt, tags = transpose(options)
         cmd = f'{base_cmd} {" ".join(opt)}'
         if args.track:
+            tags = filter(lambda t: t is not None, tags)
             cmd += f' --wandb-tags \'{",".join(tags)}\''
         cmds.append(cmd)
     return cmds
@@ -129,7 +130,7 @@ if __name__ == '__main__':
         all_options.append(Option('include_fixed', ['random','fixed_seed'], ['--no-fixed', '--fixed'], ''))
 
     if args.include_template:
-        all_options.append(Option('include_template', ['template',''], ['--use-template', '--no-use-template'], ''))
+        all_options.append(Option('include_template', ['template',None], ['--use-template', '--no-use-template'], ''))
 
     if args.include_none_rnd:
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
