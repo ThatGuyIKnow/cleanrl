@@ -285,7 +285,7 @@ class RNDModel(nn.Module):
             masks.append(self.templates[y:y+self.obs_shape[1],x:x+self.obs_shape[0]])
         m = np.stack(masks, axis=-1)
         m =  m  > (w * (w - args.template_size))
-        return torch.Tensor(m.swapaxes(-1, 0))[:, None]
+        return torch.Tensor(m.swapaxes(-1, 0))[:, None].to(device)
 
     def predictor(self, x, pos):
         if not args.use_template:
