@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+import itertools
 import subprocess
 import concurrent.futures
 import queue
-from typing import List 
+from typing import List, Optional, Union 
 import tyro
 
 @dataclass
@@ -21,78 +22,63 @@ class Args:
     """avaliable device ids"""
     include_rnd: bool = True
     """avaliable device ids"""
+    include_noisy: bool = False
+    """avaliable device ids"""
     seed: int = 42
     """seed"""
+    max_workers: int = 4
+    """Max gpu workeres"""
 
 args = tyro.cli(Args)
 
-# Simulated list of variables, each could be a GPU device ID for instance
-devices = [f'cuda:{d}' for d in args.devices]
-
-# Creating a Queue and populating it with the variables
-device_queue = queue.Queue()
-for var in devices:
-    device_queue.put(var)
-
-base_cmd = f"python cleanrl/ppo_rnd_gridworld.py --seed {args.seed}"
-if args.track:
-    base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
-
-env_ids = [
-    'Visual/DoorKey5x5-Gridworld-v0',
-    'Visual/DoorKey6x6-Gridworld-v0',
-    'Visual/DoorKey8x8-Gridworld-v0',
-    'Visual/DoorKey16x16-Gridworld-v0',
-    # 'Visual/NoisyDoorKey5x5-Gridworld-v0',
-    # 'Visual/NoisyDoorKey6x6-Gridworld-v0',
-    # 'Visual/NoisyDoorKey8x8-Gridworld-v0',
-    # 'Visual/NoisyDoorKey16x16-Gridworld-v0',
-    'Visual/MultiRoomS4N2-Gridworld-v0',
-    'Visual/MultiRoomS5N4-Gridworld-v0',
-    'Visual/MultiRoomS10N6-Gridworld-v0',
-    # 'Visual/NoisyMultiRoomS4N2-Gridworld-v0',
-    # 'Visual/NoisyMultiRoomS5N4-Gridworld-v0',
-    # 'Visual/NoisyMultiRoomS10N6-Gridworld-v0',
+env_ids_and_tags = [
+    ('Visual/DoorKey5x5-Gridworld-v0', 'doorkey5x5'),
+    ('Visual/DoorKey6x6-Gridworld-v0', 'doorkey6x6'),
+    ('Visual/DoorKey8x8-Gridworld-v0', 'doorkey8x8'),
+    ('Visual/DoorKey16x16-Gridworld-v0', 'doorkey16x16'),
+    ('Visual/MultiRoomS4N2-Gridworld-v0', 'multiroomS4N2'),
+    ('Visual/MultiRoomS5N4-Gridworld-v0', 'multiroomS5N4'),
+    ('Visual/MultiRoomS10N6-Gridworld-v0', 'multiroomS10N6'),
 ]
 
-_tags = [
-    "doorkey5x5",
-    "doorkey6x6",
-    "doorkey8x8",
-    "doorkey16x16",
-    # "doorkey5x5,noisy",
-    # "doorkey6x6,noisy",
-    # "doorkey8x8,noisy",
-    # "doorkey16x16,noisy",
-    "multiroomS4N2",
-    "multiroomS5N4",
-    "multiroomS10N6",
-    # "multiroomS4N2,noisy",
-    # "multiroomS5N4,noisy",
-    # "multiroomS10N6,noisy",
+noisy_env_ids_and_tags = [
+    ('Visual/NoisyDoorKey5x5-Gridworld-v0', 'doorkey5x5,noisy'),
+    ('Visual/NoisyDoorKey6x6-Gridworld-v0', 'doorkey6x6,noisy'),
+    ('Visual/NoisyDoorKey8x8-Gridworld-v0', 'doorkey8x8,noisy'),
+    ('Visual/NoisyDoorKey16x16-Gridworld-v0', 'doorkey16x16,noisy'),
+    ('Visual/NoisyMultiRoomS4N2-Gridworld-v0', 'multiroomS4N2,noisy'),
+    ('Visual/NoisyMultiRoomS5N4-Gridworld-v0', 'multiroomS5N4,noisy'),
+    ('Visual/NoisyMultiRoomS10N6-Gridworld-v0', 'multiroomS10N6,noisy'),
 ]
-tags = [f'\'{t}\'' for t in _tags]
 
-if args.include_fixed:
-    tags.extend([f'\'{t},fixed\'' for t in _tags])
+@dataclass(frozen=True)
+class Option:
+    name: str
+    tags: Union[str, List[str]]
+    args: Optional[List[str]]
+    cmd_option: str
 
-# Preparing a list to hold commands that will be formatted with variables later
-commands = [f'{base_cmd} --env-id {id}' for id in env_ids]
-if args.include_fixed:
-    commands.extend([f'{base_cmd} --env-id {id} --fixed' for id in env_ids])
+    def get_options(self):
+        if args is None:
+            return self.cmd_option, self.tags
+        assert len(self.tags) == len(self.args)
+        return [(f'{self.cmd_option} {arg}', tag) for arg, tag in zip(self.args, self.tags)]
 
-if args.include_rnd:
-    commands += [f'{cmd} --wandb-tags {tag} --int_coef 0' for cmd, tag in zip(commands, tags)]
-    tags = [f'\'{t},rnd\'' for t in tags] + tags
-else:
-    commands = [f'{cmd} --wandb-tags {tag} --int_coef 0' for cmd, tag in zip(commands, tags)]
+def transpose(l):
+    return list(map(list, zip(*l)))
 
-commands = [f'{cmd} --device ' + '{0}' for cmd in commands]
 
-print('\n'.join(commands))
+def construct_all_commands(base_cmd: str, options: List[Option]):
+    cmds = []
+    str_options = map(lambda o: o.get_options(), options)
+    for options in itertools.product(*str_options):
+        opt, tags = transpose(options)
+        cmd = f'{base_cmd} {" ".join(opt)}'
+        if args.track:
+            cmd += f' --wandb-tags \'{",".join(tags)}\''
+        cmds.append(cmd)
+    return cmds
 
-# Number of concurrent commands you want to run. Adjust as per your needs.
-max_workers = 4
 
 def run_command(base_cmd):
     # Get a variable from the queue
@@ -101,7 +87,7 @@ def run_command(base_cmd):
     try:
         # Format the command with the variable
         cmd = base_cmd.format(var)
-
+        
         # Execute the command
         result = subprocess.run(cmd, shell=True, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # Return the standard output
@@ -113,17 +99,53 @@ def run_command(base_cmd):
         # Always return the variable to the queue
         device_queue.put(var)
 
+if __name__ == '__main__':
+    # Create shared device allocation tracker
+    # Simulated list of variables, each could be a GPU device ID for instance
+    devices = [f'cuda:{d}' for d in args.devices]
 
-# Using ThreadPoolExecutor to manage concurrent execution
-with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-    # Map commands to future tasks
-    future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
-    # As each command completes, print its result
-    for future in concurrent.futures.as_completed(future_to_cmd):
-        cmd = future_to_cmd[future]
-        try:
-            result = future.result()
-            print(f"Result: '{result}' from '{cmd}'")
-        except Exception as exc:
-            print(f"Command '{cmd}' generated an exception: {exc}")
+    # Creating a Queue and populating it with the variables
+    device_queue = queue.Queue()
+    for var in devices:
+        device_queue.put(var)
+        
+
+    # Construct commands
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld.py --seed {args.seed} --device " + "{0}"
+    if args.track:
+        base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
+
+    all_options = []
+    if args.include_noisy:
+        env_ids, env_tags = transpose(env_ids_and_tags + noisy_env_ids_and_tags)
+    else:
+        env_ids, env_tags = transpose(env_ids_and_tags)
+    
+    all_options.append(Option('env_id', env_tags, env_ids, '--env-id'))
+
+    if args.include_fixed:
+        all_options.append(Option('include_fixed', ['random','fixed_seed'], [False, True], '--fixed'))
+
+    if args.include_rnd:
+        all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
+    else:
+        base_cmd += ' --int-coef 0'
+
+
+    commands = construct_all_commands(base_cmd, all_options)
+    print(f' ===== No. experiments: {len(commands)} ===== ', *commands, sep='\n')
+
+
+    # Using ThreadPoolExecutor to manage concurrent execution
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+        # Map commands to future tasks
+        future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
+        # As each command completes, print its result
+        for future in concurrent.futures.as_completed(future_to_cmd):
+            cmd = future_to_cmd[future]
+            try:
+                result = future.result()
+                print(f"Result: '{result}' from '{cmd}'")
+            except Exception as exc:
+                print(f"Command '{cmd}' generated an exception: {exc}")
 

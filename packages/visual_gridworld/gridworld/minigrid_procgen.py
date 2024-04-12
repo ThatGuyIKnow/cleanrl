@@ -443,19 +443,19 @@ class Gridworld(gymnasium.Env):
         elif action == 3:
             self.use(env_index)
     def step(self, actions):
-        if self.next_dones.any():
-            self.step_counts *= ~self.next_dones
-            d = np.where(self.next_dones)[0]
-            for index in d:
-                self.reset_env(index)
-            self.next_dones = self.next_dones & False
-
         for i, action in enumerate(actions):
             self.handle_single_action(action, i)
         self.max_c = max(self.max_c, self.step_counts.max())
         self.step_counts += 1
         truncated = self.step_counts == self.max_time_step
         self.next_dones = self.dones | truncated
+
+        if self.next_dones.any():
+            self.step_counts *= ~self.next_dones
+            d = np.where(self.next_dones)[0]
+            for index in d:
+                self.reset_env(index)
+            self.next_dones = self.next_dones & False
 
         observation = self.rgb_render()
         reward = (1. - 0.9 * (self.step_counts / self.max_time_step)) * self.dones
