@@ -38,7 +38,7 @@ env_ids_and_tags = [
     ('Visual/DoorKey16x16-Gridworld-v0', 'doorkey16x16'),
     ('Visual/MultiRoomS4N2-Gridworld-v0', 'multiroomS4N2'),
     ('Visual/MultiRoomS5N4-Gridworld-v0', 'multiroomS5N4'),
-    ('Visual/MultiRoomS10N6-Gridworld-v0', 'multiroomS10N6'),
+    # ('Visual/MultiRoomS10N6-Gridworld-v0', 'multiroomS10N6'),
 ]
 
 noisy_env_ids_and_tags = [
@@ -48,7 +48,7 @@ noisy_env_ids_and_tags = [
     ('Visual/NoisyDoorKey16x16-Gridworld-v0', 'doorkey16x16,noisy'),
     ('Visual/NoisyMultiRoomS4N2-Gridworld-v0', 'multiroomS4N2,noisy'),
     ('Visual/NoisyMultiRoomS5N4-Gridworld-v0', 'multiroomS5N4,noisy'),
-    ('Visual/NoisyMultiRoomS10N6-Gridworld-v0', 'multiroomS10N6,noisy'),
+    # ('Visual/NoisyMultiRoomS10N6-Gridworld-v0', 'multiroomS10N6,noisy'),
 ]
 
 @dataclass(frozen=True)

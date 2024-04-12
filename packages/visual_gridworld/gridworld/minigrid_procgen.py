@@ -458,7 +458,7 @@ class Gridworld(gymnasium.Env):
             self.next_dones = self.next_dones & False
 
         observation = self.rgb_render()
-        reward = (1. - 0.9 * (self.step_counts / self.max_time_step)) * self.dones
+        reward = self.get_reward(self.step_counts, self.max_time_step) * self.dones
         self.info['step_count'] = self.step_counts.copy()
         self.info['episodic_return'] += reward
         self.info['current_room'] = self.current_rooms
@@ -466,6 +466,8 @@ class Gridworld(gymnasium.Env):
 
         return observation, reward, self.dones, truncated, self.info
 
+    def get_reward(self, step_counts, max_step):
+        return (1. - 0.9 * (step_counts / max_step))
 
     def reset(self, seed = None, options = None):
         super().reset(seed=seed)
@@ -689,6 +691,7 @@ class DoorKey5x5Gridworld(Gridworld):
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed)
         random_tile = RandomLuminationTiles(cell_size, seed)
+        self.max_reward = self.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
         super().__init__(self.width, self.height, 1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps)
 
 
@@ -701,6 +704,7 @@ class DoorKey6x6Gridworld(Gridworld):
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed)
         random_tile = RandomLuminationTiles(cell_size, seed)
+        self.max_reward = self.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
         super().__init__(self.width, self.height, 1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps)
 
 
@@ -713,6 +717,7 @@ class DoorKey8x8Gridworld(Gridworld):
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed)
         random_tile = RandomLuminationTiles(cell_size, seed)
+        self.max_reward = self.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
         super().__init__(self.width, self.height, 1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps)
 
 
@@ -726,6 +731,7 @@ class DoorKey16x16Gridworld(Gridworld):
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed)
         random_tile = RandomLuminationTiles(cell_size, seed)
+        self.max_reward = self.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
         super().__init__(self.width, self.height, 1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps)
 
 
@@ -838,7 +844,9 @@ class NoisyDoorKey5x5Gridworld(gymnasium.Env):
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         super().__init__()
-        self.env = NoisyGridworldWrapper(DoorKey5x5Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed))
+        env = DoorKey5x5Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed)
+        self.max_reward = env.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
+        self.env = NoisyGridworldWrapper(env)
 
         self.step = self.env.step
         self.reset = self.env.reset
@@ -858,7 +866,9 @@ class NoisyDoorKey6x6Gridworld(gymnasium.Env):
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         super().__init__()
-        self.env = NoisyGridworldWrapper(DoorKey6x6Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed))
+        env = DoorKey6x6Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed)
+        self.max_reward = env.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
+        self.env = NoisyGridworldWrapper(env)
 
         self.step = self.env.step
         self.reset = self.env.reset
@@ -878,7 +888,9 @@ class NoisyDoorKey8x8Gridworld(gymnasium.Env):
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         super().__init__()
-        self.env = NoisyGridworldWrapper(DoorKey8x8Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed))
+        env = DoorKey8x8Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed)
+        self.max_reward = env.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
+        self.env = NoisyGridworldWrapper(env)
 
         self.step = self.env.step
         self.reset = self.env.reset
@@ -900,7 +912,9 @@ class NoisyDoorKey16x16Gridworld(gymnasium.Env):
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
         super().__init__()
-        self.env = NoisyGridworldWrapper(DoorKey16x16Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed))
+        env = DoorKey16x16Gridworld(cell_size, num_envs, fixed, max_steps, render_mode, seed)
+        self.max_reward = env.get_reward((self.width-1) + 3*(self.height-2), self._max_episode_steps)
+        self.env = NoisyGridworldWrapper(env)
 
         self.step = self.env.step
         self.reset = self.env.reset

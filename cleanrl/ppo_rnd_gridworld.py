@@ -45,7 +45,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/DoorKey16x16-Gridworld-v0"
+    env_id: str = "Visual/MultiRoomS10N6-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
@@ -92,6 +92,12 @@ class Args:
     num_iterations_obs_norm_init: int = 50
     """number of iterations to initialize the observations normalization parameters"""
 
+    # Early stopping arguments
+    early_stopping_threshold: float = None
+    """margin for early stopping"""
+    early_stopping_patience: int = int(1e5)
+    """patience for early stopping"""
+
     # to be filled in runtime
     batch_size: int = 0
     """the batch size (computed in runtime)"""
@@ -99,6 +105,8 @@ class Args:
     """the mini-batch size (computed in runtime)"""
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
+    max_reward: float = None
+    """max reward for early termination"""
 
 
 class RecordEpisodeStatistics(gym.Wrapper):
@@ -275,6 +283,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
+    early_stopping_counter = args.total_timesteps
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
@@ -313,6 +322,10 @@ if __name__ == "__main__":
         fixed=args.fixed,
         seed=args.seed,
     )
+
+    if args.early_stopping_threshold and hasattr(envs, 'max_reward'):
+        args.max_reward = envs.max_reward * (1-args.early_stopping_threshold)
+
     envs = GridworldResizeObservation(envs, (84, 84))
     envs.num_envs = args.num_envs
     envs = RecordEpisodeStatistics(envs)
@@ -417,6 +430,15 @@ if __name__ == "__main__":
                         global_step,
                     )
                     writer.add_scalar("charts/episodic_length", info["l"][idx], global_step)
+
+                    if args.max_reward is not None and \
+                            args.max_reward > epi_ret and \
+                            early_stopping_counter == args.total_timesteps:
+                        early_stopping_counter = global_step + args.early_stopping_patience
+                    else:
+                        early_stopping_counter = args.total_timesteps
+        if global_step > early_stopping_counter:
+            break
 
         curiosity_reward_per_env = np.array(
             [discounted_reward.update(reward_per_step) for reward_per_step in curiosity_rewards.cpu().data.numpy().T]
