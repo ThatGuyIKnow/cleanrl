@@ -34,12 +34,12 @@ class Args:
 args = tyro.cli(Args)
 
 env_ids_and_tags = [
-    ('Visual/DoorKey5x5-Gridworld-v0', 'doorkey5x5'),
-    ('Visual/DoorKey6x6-Gridworld-v0', 'doorkey6x6'),
-    ('Visual/DoorKey8x8-Gridworld-v0', 'doorkey8x8'),
-    ('Visual/DoorKey16x16-Gridworld-v0', 'doorkey16x16'),
-    ('Visual/MultiRoomS4N2-Gridworld-v0', 'multiroomS4N2'),
-    ('Visual/MultiRoomS5N4-Gridworld-v0', 'multiroomS5N4'),
+    ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timestep 2000000', 'doorkey5x5'),
+    ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timestep 3000000', 'doorkey6x6'),
+    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timestep 4000000', 'doorkey8x8'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timestep 50000000', 'doorkey16x16'),
+    ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timestep 7000000', 'multiroomS4N2'),
+    ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timestep 7000000', 'multiroomS5N4'),
     # ('Visual/MultiRoomS10N6-Gridworld-v0', 'multiroomS10N6'),
 ]
 
