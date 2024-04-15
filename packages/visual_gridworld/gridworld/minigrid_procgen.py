@@ -1077,6 +1077,7 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
         E, _, _, C = env.observation_space.shape
         W, H = self.shape
         obs_shape = (E, W, H, C)
+        self.single_observation_space = gymnasium.spaces.Box(low=0, high=255, shape=(1, ) + obs_shape[1:], dtype=np.uint8)
         self.observation_space = gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
         self.get_player_position = env.get_player_position
         self.get_grid = self.env.get_grid

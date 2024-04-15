@@ -34,12 +34,12 @@ class Args:
 args = tyro.cli(Args)
 
 env_ids_and_tags = [
-    ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000', 'doorkey5x5'),
-    ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000', 'doorkey6x6'),
-    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000', 'doorkey8x8'),
-    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 50000000', 'doorkey16x16'),
-    ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 7000000', 'multiroomS4N2'),
-    ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 7000000', 'multiroomS5N4'),
+    ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 0.2', 'doorkey5x5'),
+    ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.2', 'doorkey6x6'),
+    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 50000000 --int-coef 0.2', 'doorkey16x16'),
+    ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 7000000 --int-coef 0.2', 'multiroomS4N2'),
+    ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 7000000 --int-coef 0.2', 'multiroomS5N4'),
     # ('Visual/MultiRoomS10N6-Gridworld-v0', 'multiroomS10N6'),
 ]
 
@@ -141,15 +141,15 @@ if __name__ == '__main__':
 
 
     # Using ThreadPoolExecutor to manage concurrent execution
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
-        # Map commands to future tasks
-        future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
-        # As each command completes, print its result
-        for future in concurrent.futures.as_completed(future_to_cmd):
-            cmd = future_to_cmd[future]
-            try:
-                result = future.result()
-                print(f"Result: '{result}' from '{cmd}'")
-            except Exception as exc:
-                print(f"Command '{cmd}' generated an exception: {exc}")
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+    #     # Map commands to future tasks
+    #     future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
+    #     # As each command completes, print its result
+    #     for future in concurrent.futures.as_completed(future_to_cmd):
+    #         cmd = future_to_cmd[future]
+    #         try:
+    #             result = future.result()
+    #             print(f"Result: '{result}' from '{cmd}'")
+    #         except Exception as exc:
+    #             print(f"Command '{cmd}' generated an exception: {exc}")
 
