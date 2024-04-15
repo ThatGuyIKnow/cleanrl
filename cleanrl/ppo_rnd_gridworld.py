@@ -270,8 +270,8 @@ class RNDModel(nn.Module):
         # self.make_template = torch.jit.trace(self.make_template, (torch.rand(1) * self.obs_shape[0], torch.rand(1) * self.obs_shape[1]))
 
     def construct_templates(self):
-        w, h = self.shape.numpy()
-        x, y = self.obs_shape.numpy()
+        w, h = self.shape.cpu().numpy()
+        x, y = self.obs_shape.cpu().numpy()
         lin_w = w - np.absolute(np.linspace(1-w, w-1, 2*w-1))
         lin_h = h - np.absolute(np.linspace(1-h, h-1, 2*h-1))
         t = np.outer(lin_w, lin_h)  
