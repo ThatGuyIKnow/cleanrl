@@ -46,7 +46,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/DoorKey16x16-Gridworld-v0"
+    env_id: str = "Visual/DoorKey8x8-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
@@ -263,8 +263,8 @@ class RNDModel(nn.Module):
         for param in self._target.parameters():
             param.requires_grad = False
         b, w, h = envs.get_grid().shape
-        self.shape = torch.LongTensor((w, h))
-        self.obs_shape = torch.LongTensor(envs.observation_space.shape[-2:])
+        self.shape = torch.LongTensor((w, h), device=device)
+        self.obs_shape = torch.LongTensor(envs.observation_space.shape[-2:], device=device)
         self.templates = self.construct_templates()
 
         # self.make_template = torch.jit.trace(self.make_template, (torch.rand(1) * self.obs_shape[0], torch.rand(1) * self.obs_shape[1]))
