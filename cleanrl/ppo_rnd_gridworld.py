@@ -280,7 +280,7 @@ class RNDModel(nn.Module):
                      .reshape(-1, w, h)
         t = cv2.resize(t.swapdims(0, -1).numpy(), (x, y), interpolation=cv2.INTER_NEAREST_EXACT)
         t = torch.Tensor(t) > (w * (w - args.template_size))
-        t = t.swapdims(-1, 0)
+        t = t.swapdims(-1, 0).bool()
         return t.to(device)
     
     def make_template(self, positions):
