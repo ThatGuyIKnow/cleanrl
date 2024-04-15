@@ -263,8 +263,8 @@ class RNDModel(nn.Module):
         for param in self._target.parameters():
             param.requires_grad = False
         b, w, h = envs.get_grid().shape
-        self.shape = torch.LongTensor((w, h), device=device)
-        self.obs_shape = torch.LongTensor(envs.observation_space.shape[-2:], device=device)
+        self.shape = torch.LongTensor((w, h)).to(device)
+        self.obs_shape = torch.LongTensor(envs.observation_space.shape[-2:]).to(device)
         self.templates = self.construct_templates()
 
         # self.make_template = torch.jit.trace(self.make_template, (torch.rand(1) * self.obs_shape[0], torch.rand(1) * self.obs_shape[1]))
