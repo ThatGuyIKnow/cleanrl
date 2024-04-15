@@ -46,7 +46,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/DoorKey6x6-Gridworld-v0"
+    env_id: str = "Visual/DoorKey16x16-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
@@ -263,29 +263,31 @@ class RNDModel(nn.Module):
         for param in self._target.parameters():
             param.requires_grad = False
         b, w, h = envs.get_grid().shape
-        self.shape = (w, h)
-        self.obs_shape = envs.observation_space.shape[-2:]
-        self.templates = self.construct_templates(self.shape)
+        self.shape = torch.LongTensor((w, h))
+        self.obs_shape = torch.LongTensor(envs.observation_space.shape[-2:])
+        self.templates = self.construct_templates()
 
-    def construct_templates(self, size):
-        w, h = size
-        x, y = self.obs_shape
+        # self.make_template = torch.jit.trace(self.make_template, (torch.rand(1) * self.obs_shape[0], torch.rand(1) * self.obs_shape[1]))
+
+    def construct_templates(self):
+        w, h = self.shape.numpy()
+        x, y = self.obs_shape.numpy()
         lin_w = w - np.absolute(np.linspace(1-w, w-1, 2*w-1))
         lin_h = h - np.absolute(np.linspace(1-h, h-1, 2*h-1))
-        t = np.outer(lin_w, lin_h)
-        return cv2.resize(t, (2*x, 2*y), interpolation=cv2.INTER_NEAREST_EXACT)
+        t = np.outer(lin_w, lin_h)  
+        t = torch.Tensor(t).unfold(1, w, 1) \
+                     .unfold(0, h, 1) \
+                     .reshape(-1, w, h)
+        t = cv2.resize(t.swapdims(0, -1).numpy(), (x, y), interpolation=cv2.INTER_NEAREST_EXACT)
+        t = torch.Tensor(t) > (w * (w - args.template_size))
+        t = t.swapdims(-1, 0)
+        return t.to(device)
     
     def make_template(self, positions):
-        masks = []
-        w,h = self.shape
-        for pos in positions:
-            x, y = w-pos[0]-1, h-pos[1]-1
-            x = int(x*self.obs_shape[0] / self.shape[0])
-            y = int(y*self.obs_shape[1] / self.shape[1])
-            masks.append(self.templates[y:y+self.obs_shape[1],x:x+self.obs_shape[0]])
-        m = np.stack(masks, axis=-1)
-        m =  m  > (w * (w - args.template_size))
-        return torch.Tensor(m.swapaxes(-1, 0))[:, None].to(device)
+        pos = self.shape - positions - 1
+        indices = pos[:, 1] * self.shape[0] + pos[:,0]
+        m = self.templates[indices]
+        return m[:, None]
 
     def predictor(self, x, pos):
         if not args.use_template:
@@ -360,6 +362,7 @@ if __name__ == "__main__":
         device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
     else:
         device = torch.device(args.device if torch.cuda.is_available() and args.cuda else "cpu")
+        
     # env setup
     envs = gym.make(
         args.env_id,
