@@ -12,13 +12,13 @@ class Args:
     """track the experiment"""
     wandb_project_name: str = 'gridworld-rnd'
     """track the experiment"""
-    repeats: int = 1
+    repeats: int = 4
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
     devices: tuple[int] = (0, 1, 2, 3)
     """avaliable device ids"""
-    include_fixed: bool = True
+    include_random: bool = False
     """avaliable device ids"""
     include_none_rnd: bool = False
     """avaliable device ids"""
@@ -26,7 +26,7 @@ class Args:
     """avaliable device ids"""
     include_template: bool = True
     """avaiable"""
-    seed: int = 42
+    seed: int = 43
     """seed"""
     max_workers: int = 4
     """Max gpu workeres"""
@@ -37,10 +37,10 @@ env_ids_and_tags = [
     ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 0.2', 'doorkey5x5'),
     ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.2', 'doorkey6x6'),
     ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8'),
-    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 50000000 --int-coef 0.2', 'doorkey16x16'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16'),
     ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 7000000 --int-coef 0.2', 'multiroomS4N2'),
     ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 7000000 --int-coef 0.2', 'multiroomS5N4'),
-    # ('Visual/MultiRoomS10N6-Gridworld-v0', 'multiroomS10N6'),
+    ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 20000000 --int-coef 0.2', 'multiroomS10N6'),
 ]
 
 noisy_env_ids_and_tags = [
@@ -114,7 +114,7 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld.py --seed {args.seed} --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld.py --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
@@ -126,8 +126,11 @@ if __name__ == '__main__':
     
     all_options.append(Option('env_id', env_tags, env_ids, '--env-id'))
 
-    if args.include_fixed:
+    if args.include_random:
         all_options.append(Option('include_fixed', ['random','fixed_seed'], ['--no-fixed', '--fixed'], ''))
+    else:
+        all_options.append(Option('include_fixed', ['fixed_seed'], ['--fixed'], ''))
+        
 
     if args.include_template:
         all_options.append(Option('include_template', ['template',None], ['--use-template', '--no-use-template'], ''))
@@ -135,6 +138,12 @@ if __name__ == '__main__':
     if args.include_none_rnd:
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
 
+
+    if args.repeats:
+        all_options.append(Option('seed', 
+                                  ['',]*args.repeats, 
+                                  list(args.seed+i for i in range(args.repeats)), 
+                                  '--seed'))
 
     commands = construct_all_commands(base_cmd, all_options)
     print(f' ===== No. experiments: {len(commands)} ===== ', *commands, sep='\n')
