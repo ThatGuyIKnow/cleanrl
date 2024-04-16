@@ -53,7 +53,7 @@
             "program": "${workspaceFolder}/cleanrl/ppo_rnd_gridworld.py",
             "args": [
                 "--use-template",
-                "--template_size", "2"
+                "--template_size", "3"
             ]
         }
     ]
