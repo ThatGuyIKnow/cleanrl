@@ -48,6 +48,8 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "Visual/DoorKey8x8-Gridworld-v0"
     """the id of the environment"""
+    env_mode: Optional[str] = None
+    """Environemt mode (random or hard)"""
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
@@ -364,12 +366,17 @@ if __name__ == "__main__":
         device = torch.device(args.device if torch.cuda.is_available() and args.cuda else "cpu")
         
     # env setup
-    envs = gym.make(
-        args.env_id,
+    env_kwargs = dict(
         num_envs=args.num_envs,
         cell_size=14,
         fixed=args.fixed,
-        seed=args.seed,
+        seed=args.seed,)
+    if args.env_mode is not None:
+        env_kwargs['mode'] = args.env_mode
+
+    envs = gym.make(
+        args.env_id,
+        **env_kwargs
     )
 
     if args.early_stopping_threshold and hasattr(envs, 'max_reward'):

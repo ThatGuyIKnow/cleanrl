@@ -44,10 +44,15 @@ class Template(nn.Module):
         self.create_new_templates(self._curr_var())
 
 
+    @torch.jit.export
     def _curr_var(self, mixin: Optional[float] = None) -> int:
         # Determine the current variance based on the mixin factor
         # If `var` is a fixed int, just return it. If it's a tuple, interpolate.
-        return int(self.var[0] + self._mixin_factor * (self.var[1] - self.var[0]))
+        if mixin is None:
+            print(int(self.var[0] + self._mixin_factor * (self.var[1] - self.var[0])))
+            return int(self.var[0] + self._mixin_factor * (self.var[1] - self.var[0]))
+        print(int(self.var[0] + mixin * (self.var[1] - self.var[0])))
+        return int(self.var[0] + mixin * (self.var[1] - self.var[0]))
     
     @torch.jit.export
     def set_mixin_factor(self, mixin_factor: float) -> None:
