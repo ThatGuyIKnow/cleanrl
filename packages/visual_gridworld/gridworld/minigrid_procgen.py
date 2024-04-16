@@ -506,7 +506,7 @@ class Gridworld(gymnasium.Env):
         self.rgb_obs[index] = self.construct_rgb_obs(index)
         self.last_player_positions[index] = player_position
         self.has_key[index] = False
-        self.visited_rooms[index] = set()
+        self.visited_rooms[index] = set([0])
         self.current_rooms[index] = 0
 
         self.info['rooms_visited'][index] = 1
