@@ -368,7 +368,7 @@ if __name__ == "__main__":
     # env setup
     env_kwargs = dict(
         num_envs=args.num_envs,
-        cell_size=14,
+        cell_size=10,
         fixed=args.fixed,
         seed=args.seed,)
     if args.env_mode is not None:
