@@ -38,8 +38,8 @@ env_ids_and_tags = [
     ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.2', 'doorkey6x6'),
     ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8'),
     ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16'),
-    ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 7000000 --int-coef 0.2', 'multiroomS4N2'),
-    ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 7000000 --int-coef 0.2', 'multiroomS5N4'),
+    ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000 --int-coef 0.2', 'multiroomS4N2'),
+    ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.2', 'multiroomS5N4'),
     ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 20000000 --int-coef 0.2', 'multiroomS10N6'),
 ]
 
