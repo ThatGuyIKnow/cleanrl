@@ -141,7 +141,7 @@ if __name__ == '__main__':
 
     if args.repeats:
         all_options.append(Option('seed', 
-                                  ['',]*args.repeats, 
+                                  [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
 
