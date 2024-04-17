@@ -425,7 +425,7 @@ if __name__ == "__main__":
     start_time = time.time()
     next_obs, info = envs.reset()
     next_obs = torch.Tensor(next_obs).to(device)
-    next_player_pos = torch.from_numpy(envs.get_player_position())
+    next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
 
@@ -479,7 +479,7 @@ if __name__ == "__main__":
             done = done | truncated
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
-            next_player_pos = torch.from_numpy(envs.get_player_position())
+            next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
             mask = rnd_model.make_template(next_player_pos)
             masked_next_obs = mask * next_obs
             rnd_next_obs = (
