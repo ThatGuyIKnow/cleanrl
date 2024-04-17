@@ -136,10 +136,10 @@ if __name__ == '__main__':
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
 
 
-    if args.mode == 'random':
-        all_options.append(Option('wall_mode', ['wall_random'], ['random'], '--env-mode'))
-    elif args.mode == 'hard':
-        all_options.append(Option('wall_mode', ['wall_hard'], ['hard'], '--env-mode'))
+    # if args.mode == 'random':
+    #     all_options.append(Option('wall_mode', ['wall_random'], ['random'], '--env-mode'))
+    # elif args.mode == 'hard':
+    #     all_options.append(Option('wall_mode', ['wall_hard'], ['hard'], '--env-mode'))
 
 
     if args.repeats:
