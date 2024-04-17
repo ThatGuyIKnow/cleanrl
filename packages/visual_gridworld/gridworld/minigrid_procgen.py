@@ -416,7 +416,7 @@ class Gridworld(gymnasium.Env):
         self.key_mapping = [pygame.K_UP, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_SPACE]
         if render_mode == 'human':
             pygame.init()
-            self.screen = pygame.display.set_mode((self.screen_size[0] * 4, self.screen_size[1] * 4))
+            self.screen = pygame.display.set_mode((1000, 1000))
             pygame.display.set_caption('Gridworld Game')
             self.clock = pygame.time.Clock()
             self.render = self.human_render
@@ -802,7 +802,7 @@ class MultiRoomS10N6GridWorld(Gridworld):
     _max_episode_steps= room_count * 20
 
     def __init__(self, cell_size = 30, num_envs=1, fixed = False, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
-        width = height = int(self.room_count * self.max_room_size / 3)
+        width = height = int(self.room_count * self.max_room_size / 2)
         grid_gen = MultiRoomGridworld(seed, fixed, width=width, height=height, room_count=self.room_count, max_room_size=self.max_room_size)
         random_tile = RandomLuminationTiles(cell_size, seed)
         super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps)
@@ -1082,7 +1082,7 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
         ), f"Expected shape to be a 2-tuple of positive integers, got: {shape}"
 
         self.shape = tuple(shape)
-
+        self.env = env
         assert isinstance(
             env.observation_space, gymnasium.spaces.Box
         ), f"Expected the observation space to be Box, actual type: {type(env.observation_space)}"
@@ -1127,3 +1127,21 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
         
         observation = observation.reshape((*self.shape[::-1], C, B)).transpose(3, 0, 1, 2)
         return observation
+
+    def render(self):
+        if self.env.render_mode == 'rgb_array':
+            return self.env.render()
+        self.env.screen.fill((255, 255, 255))  # Fill the screen with white
+        # draw the array onto the surface
+        w,h = self.shape
+        obs = self.env.rgb_render()
+        obs = self.observation(obs)
+        screen = np.zeros((w * 4, h * 4, 3), dtype=np.uint8)
+        for index, o in enumerate(obs):
+            i = (index % 4)*w
+            j = index // 4*h
+            screen[i:i+w,j:j+h] = o
+        surf = pygame.surfarray.make_surface(screen)
+        surf = pygame.transform.scale(surf, (1000, 1000))
+        self.env.screen.blit(surf, (0, 0))
+        pygame.display.update()
