@@ -109,7 +109,7 @@ class Args:
     """use templating approach"""
     template_size: int = 3
     """masking template cell size"""
-    alpha: float = 0.1
+    alpha: float = 0.0
     """transparancy"""
     
 
@@ -299,21 +299,21 @@ class RNDModel(nn.Module):
         return m[:, None]
 
     def predictor(self, x, pos):
-        if not args.use_template:
-            return self._predictor(x)
-        m = self.make_template(pos)
-        return self._predictor(x * m)
+        # if not args.use_template:
+        return self._predictor(x)
+        # m = self.make_template(pos)
+        # return self._predictor(x * m)
 
     def target(self, x, pos):
-        if not args.use_template:
-            return self._target(x)
-        m = self.make_template(pos)
-        return self._target(x * m)
+        # if not args.use_template:
+        return self._target(x)
+        # m = self.make_template(pos)
+        # return self._target(x * m)
 
     def forward(self, next_obs, pos):
-        if args.use_template:
-            m = self.make_template(pos)
-            next_obs *= m
+        # if args.use_template:
+        #     m = self.make_template(pos)
+        #     next_obs *= m
 
         target_feature = self._target(next_obs)
         predict_feature = self._predictor(next_obs)
@@ -430,14 +430,20 @@ if __name__ == "__main__":
 
     print("Start to initialize observation normalization parameter.....")
     next_ob = []
+    masks = []
     for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init)):
         acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
         s, r, d, t, _ = envs.step(acs)
         next_ob += list(s)
 
+        player_pos = envs.get_player_position()
+        m = rnd_model.make_template(player_pos)
+        masks += list(m)
+
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
             next_ob = np.stack(next_ob)
-            obs_rms.update(next_ob)
+            mask = torch.stack(masks).cpu().numpy()
+            obs_rms.update(next_ob * mask)
             next_ob = []
     print("End to initialize...")
 
@@ -471,9 +477,12 @@ if __name__ == "__main__":
             done = done | truncated
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
+            
+            mask = rnd_model.make_template(envs.get_player_position())
+            masked_next_obs = mask * next_obs
             rnd_next_obs = (
                 (
-                    (next_obs - torch.from_numpy(obs_rms.mean).to(device))
+                    (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
                     / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
                 ).clip(-5, 5)
             ).float()
@@ -566,9 +575,11 @@ if __name__ == "__main__":
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
 
+        mask = rnd_model.make_template(b_player_pos)
+        masked_b_obs = mask * b_obs
         rnd_next_obs = (
             (
-                (b_obs - torch.from_numpy(obs_rms.mean).to(device))
+                (masked_b_obs - torch.from_numpy(obs_rms.mean).to(device))
                 / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
             ).clip(-5, 5)
         ).float()
