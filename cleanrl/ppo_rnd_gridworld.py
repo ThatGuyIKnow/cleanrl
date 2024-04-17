@@ -491,6 +491,8 @@ if __name__ == "__main__":
             target_next_feature = rnd_model.target(rnd_next_obs, player_pos[step])
             predict_next_feature = rnd_model.predictor(rnd_next_obs, player_pos[step])
             curiosity_rewards[step] = ((target_next_feature - predict_next_feature).pow(2).sum(1) / 2).data
+
+            visited_rooms = []
             for idx, d in enumerate(done):
                 if d:
                     avg_returns.append(info["r"][idx])
@@ -506,14 +508,19 @@ if __name__ == "__main__":
                         global_step,
                     )
                     writer.add_scalar("charts/episodic_length", info["l"][idx], global_step)
-                    writer.add_scalar("charts/rooms_visited", info["rooms_visited"][idx], global_step)
-
+                    visited_rooms.append(info["rooms_visited"][idx])
                     if args.max_reward is not None and \
                             args.max_reward > epi_ret and \
                             early_stopping_counter == args.total_timesteps:
                         early_stopping_counter = global_step + args.early_stopping_patience
                     else:
                         early_stopping_counter = args.total_timesteps
+                        
+            if len(visited_rooms) > 0:
+                visited_rooms = np.array(visited_rooms)
+                writer.add_scalar("charts/rooms_visited", visited_rooms.mean(), global_step)
+                writer.add_scalar("charts/rooms_visited", visited_rooms.max(), global_step)
+
         if global_step > early_stopping_counter:
             break
 
