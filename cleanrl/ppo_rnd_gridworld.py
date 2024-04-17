@@ -436,8 +436,8 @@ if __name__ == "__main__":
         s, r, d, t, _ = envs.step(acs)
         next_ob += list(s)
 
-        player_pos = envs.get_player_position()
-        m = rnd_model.make_template(player_pos)
+        p_pos = envs.get_player_position()
+        m = rnd_model.make_template(p_pos)
         masks += list(m)
 
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
@@ -445,6 +445,7 @@ if __name__ == "__main__":
             mask = torch.stack(masks).cpu().numpy()
             obs_rms.update(next_ob * mask)
             next_ob = []
+            masks = []
     print("End to initialize...")
 
     for update in range(1, num_updates + 1):
@@ -457,7 +458,7 @@ if __name__ == "__main__":
         for step in range(0, args.num_steps):
             global_step += 1 * args.num_envs
             obs[step] = next_obs
-            player_pos[step] = torch.Tensor(envs.get_player_position())
+            player_pos[step] = torch.from_numpy(envs.get_player_position())
             dones[step] = next_done
 
             # ALGO LOGIC: action logic
