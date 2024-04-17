@@ -563,15 +563,7 @@ class Gridworld(gymnasium.Env):
 
 
     def get_room(self, env_index, position):
-        return self.room_maps[env_index, position[0], position[1]]
-        if self.l1_norm(self.last_player_positions[env_index], position) != 2:
-            return self.current_rooms[env_index]
-        current_tile_door = np.where((self.room_maps[env_index] == self.player_positions[env_index]).all(axis=1))[0]
-
-        if len(current_tile_door) == 0:
-            return self.current_rooms[env_index]
-        movement = 1 if current_tile_door == self.current_rooms[env_index] else -1
-        return self.current_rooms[env_index] + movement
+        return self.room_maps[env_index, position[0], position[1]] + 1
 
     def l1_norm(self, pos1, pos2):
         if len(pos1.shape) == 3:
