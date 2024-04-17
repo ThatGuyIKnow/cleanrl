@@ -436,13 +436,13 @@ if __name__ == "__main__":
         s, r, d, t, _ = envs.step(acs)
         next_ob += list(s)
 
-        p_pos = envs.get_player_position()
+        p_pos = torch.from_numpy(envs.get_player_position()).to(device)
         m = rnd_model.make_template(p_pos)
         masks += list(m)
 
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
             next_ob = np.stack(next_ob)
-            mask = torch.stack(masks).cpu().numpy()
+            mask = torch.stack(masks)
             obs_rms.update(next_ob * mask)
             next_ob = []
             masks = []
