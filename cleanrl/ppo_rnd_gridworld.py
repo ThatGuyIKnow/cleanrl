@@ -284,7 +284,7 @@ class RNDModel(nn.Module):
         t = torch.Tensor(t).unfold(1, w, 1) \
                      .unfold(0, h, 1) \
                      .reshape(-1, w, h)
-        t = cv2.resize(t.swapdims(0, -1).numpy(), (x, y), interpolation=cv2.INTER_NEAREST_EXACT)
+        t = cv2.resize(t.swapdims(0, -1).numpy(), (x, y), interpolation=cv2.INTER_CUBIC)
         t = torch.Tensor(t) > (w * (w - args.template_size))
         t = t.swapdims(-1, 0)
         t = F.relu(t.float() - args.alpha) + args.alpha

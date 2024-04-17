@@ -45,7 +45,7 @@ env_ids_and_tags = [
 noisy_env_ids_and_tags = [
     # ('Visual/NoisyDoorKey5x5-Gridworld-v0', 'doorkey5x5,noisy'),
     # ('Visual/NoisyDoorKey6x6-Gridworld-v0', 'doorkey6x6,noisy'),
-    ('Visual/NoisyDoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.005 --ext-coef 5', 'doorkey8x8,noisy'),
+    ('Visual/NoisyDoorKey8x8-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.01 --ext-coef 20 --update_epochs 8', 'doorkey8x8,noisy'),
     # ('Visual/NoisyDoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16,noisy'),
 ]
 
