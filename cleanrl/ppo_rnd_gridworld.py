@@ -441,8 +441,8 @@ if __name__ == "__main__":
         masks += list(m)
 
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-            next_ob = torch.from_numpy(np.stack(next_ob)).to(device)
-            mask = torch.stack(masks)
+            next_ob = np.stack(next_ob)
+            mask = torch.stack(masks).cpu().numpy()
             obs_rms.update(next_ob * mask)
             next_ob = []
             masks = []
@@ -571,13 +571,13 @@ if __name__ == "__main__":
 
         b_advantages = b_int_advantages * args.int_coef + b_ext_advantages * args.ext_coef
 
-        obs_rms.update(b_obs.cpu().numpy())
+        mask = rnd_model.make_template(b_player_pos)
+        masked_b_obs = mask * b_obs
+        obs_rms.update(masked_b_obs.cpu().numpy())
 
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
 
-        mask = rnd_model.make_template(b_player_pos)
-        masked_b_obs = mask * b_obs
         rnd_next_obs = (
             (
                 (masked_b_obs - torch.from_numpy(obs_rms.mean).to(device))
