@@ -12,7 +12,7 @@ class Args:
     """track the experiment"""
     wandb_project_name: str = 'gridworld-rnd'
     """track the experiment"""
-    repeats: int = 16
+    repeats: int = 6
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
