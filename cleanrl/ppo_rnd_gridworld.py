@@ -441,7 +441,7 @@ if __name__ == "__main__":
         masks += list(m)
 
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-            next_ob = torch.from_numpy(np.stack(next_ob))
+            next_ob = torch.from_numpy(np.stack(next_ob)).to(device)
             mask = torch.stack(masks)
             obs_rms.update(next_ob * mask)
             next_ob = []
