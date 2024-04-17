@@ -244,7 +244,8 @@ class DoorKeyGridworld(GridWorldGeneration):
         # Add dividing wall and door
         grid[wall_poss,1:-1] = CellType.WALL.value
         grid[wall_poss,door_poss] = CellType.KEY_DOOR.value
-        room_entrances = [(wall_poss, door_poss)]
+        room_map = np.ones_like(grid)
+        room_map[wall_poss:] = 1
         # Add goal
         grid[-2,-2] = CellType.GOAL.value
 
@@ -256,7 +257,7 @@ class DoorKeyGridworld(GridWorldGeneration):
         key_y = self.random.choice(h - 3) + 2
         grid[key_x,key_y] = CellType.KEY.value
 
-        return grid, player_pos, player_direction, room_entrances
+        return grid, player_pos, player_direction, room_map
 
 
 class MultiRoomGridworld(GridWorldGeneration):
@@ -286,13 +287,15 @@ class MultiRoomGridworld(GridWorldGeneration):
         room_count = self.room_count
         max_room_size = self.max_room_size
         grid = -np.ones([width, height])
+        room_map = np.zeros_like(grid)
         room_list, door_list = self.get_room_map(width, height, room_count, max_room_size, 8)
         # room_list = [[(10, 0), (5, 4)],]
-        for (x, y), (w, h) in room_list:
+        for i, ((x, y), (w, h)) in enumerate(room_list):
             right = x + w
             bottom = y + h
             grid[x:right,y:bottom] = CellType.WALL.value
             grid[x+1:right-1,y+1:bottom-1] = CellType.FLOOR.value
+            room_map[x+1:right-1,y+1:bottom-1] = i
         for x, y in door_list:
             grid[x,y] = CellType.DOOR.value
 
@@ -302,7 +305,7 @@ class MultiRoomGridworld(GridWorldGeneration):
 
         player_direction = Direction.turn_left(Direction.UP, self.random.choice(4))
 
-        return grid, player_pos, player_direction, door_list
+        return grid, player_pos, player_direction, room_map
 
 
     def get_room_map(self, width, height, room_count, max_room_size, max_tries):
@@ -425,13 +428,13 @@ class Gridworld(gymnasium.Env):
 
         self.rgb_obs = np.zeros((num_envs, *self.screen_size, 3), dtype=np.uint8)
         self.grids = np.zeros((num_envs, width, height), dtype=np.int8)
-        self.room_entrances = np.zeros((num_envs, door_count, 2), dtype=np.int32)
+        self.room_maps = np.zeros_like(self.grids)
         self.player_positions = np.zeros((num_envs, 2), dtype=np.int32)
         self.last_player_positions = np.zeros((num_envs, 2), dtype=np.int32)
         self.player_directions = np.zeros((num_envs,), dtype=np.uint8)
 
         self.step_counts = np.zeros((num_envs, ), dtype=np.uint16)
-        self.visited_rooms = [set(), ] * num_envs
+        self.visited_rooms = np.zeros((num_envs, ), dtype=np.uint16)
         self.current_rooms = np.zeros((num_envs, ), dtype=np.uint8)
 
         self.dones = np.full((num_envs, ), fill_value=False)
@@ -475,7 +478,7 @@ class Gridworld(gymnasium.Env):
         self.info['step_count'] = self.step_counts.copy()
         self.info['episodic_return'] += reward 
         self.info['current_room'] = self.current_rooms
-        self.info['rooms_visited'] = np.array([len(visited_rooms) for visited_rooms in self.visited_rooms])
+        self.info['rooms_visited'] = self.visited_rooms.copy()
 
         info = self.get_info()
 
@@ -512,18 +515,18 @@ class Gridworld(gymnasium.Env):
 
     def reset_env(self, index: int, seed = None, options = None):
         self.dones[index] = False
-        grid, player_position, player_direction, room_entrances = \
+        grid, player_position, player_direction, room_map = \
             self.generation.generate_grid_world()
 
         self.grids[index,...] = grid
-        self.room_entrances[index] = room_entrances
+        self.room_maps[index] = room_map
 
         self.player_positions[index] = player_position
         self.player_directions[index] = player_direction.value
         self.rgb_obs[index] = self.construct_rgb_obs(index)
         self.last_player_positions[index] = player_position
         self.has_key[index] = False
-        self.visited_rooms[index] = set([0])
+        self.visited_rooms[index] = 0
         self.current_rooms[index] = 0
 
         self.info['rooms_visited'][index] = 1
@@ -560,9 +563,10 @@ class Gridworld(gymnasium.Env):
 
 
     def get_room(self, env_index, position):
+        return self.room_maps[env_index, position[0], position[1]]
         if self.l1_norm(self.last_player_positions[env_index], position) != 2:
             return self.current_rooms[env_index]
-        current_tile_door = np.where((self.room_entrances[env_index] == self.player_positions[env_index]).all(axis=1))[0]
+        current_tile_door = np.where((self.room_maps[env_index] == self.player_positions[env_index]).all(axis=1))[0]
 
         if len(current_tile_door) == 0:
             return self.current_rooms[env_index]
@@ -594,7 +598,7 @@ class Gridworld(gymnasium.Env):
         if self.can_move(env_index, new_position):
             self.current_room = self.get_room(env_index, new_position)
             # print(f'Curent room: {self.current_room}')
-            self.visited_rooms[env_index].add(self.current_room)
+            self.visited_rooms[env_index] = max(self.visited_rooms[env_index], self.current_room)
             self.player_positions[env_index] = new_position
         if self.reached_goal(env_index, new_position):
             self.dones[env_index]=True

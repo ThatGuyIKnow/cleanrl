@@ -522,7 +522,7 @@ if __name__ == "__main__":
             if len(visited_rooms) > 0:
                 visited_rooms = np.array(visited_rooms)
                 writer.add_scalar("charts/rooms_visited", visited_rooms.mean(), global_step)
-                writer.add_scalar("charts/rooms_visited", visited_rooms.max(), global_step)
+                writer.add_scalar("charts/max_rooms_visited", visited_rooms.max(), global_step)
 
         if global_step > early_stopping_counter:
             break
