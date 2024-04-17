@@ -47,7 +47,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/DoorKey8x8-Gridworld-v0"
+    env_id: str = "Visual/NoisyDoorKey8x8-Gridworld-v0"
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
@@ -465,12 +465,13 @@ if __name__ == "__main__":
             done = done | truncated
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
-            rnd_next_obs = (
-                (
-                    (next_obs - torch.from_numpy(obs_rms.mean).to(device))
-                    / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
-                ).clip(-5, 5)
-            ).float()
+            # rnd_next_obs = (
+            #     (
+            #         (next_obs - torch.from_numpy(obs_rms.mean).to(device))
+            #         / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
+            #     ).clip(-5, 5)
+            # ).float()
+            rnd_next_obs = next_obs / 255.
             target_next_feature = rnd_model.target(rnd_next_obs, player_pos[step])
             predict_next_feature = rnd_model.predictor(rnd_next_obs, player_pos[step])
             curiosity_rewards[step] = ((target_next_feature - predict_next_feature).pow(2).sum(1) / 2).data
@@ -560,12 +561,13 @@ if __name__ == "__main__":
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
 
-        rnd_next_obs = (
-            (
-                (b_obs - torch.from_numpy(obs_rms.mean).to(device))
-                / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
-            ).clip(-5, 5)
-        ).float()
+        # rnd_next_obs = (
+        #     (
+        #         (b_obs - torch.from_numpy(obs_rms.mean).to(device))
+        #         / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
+        #     ).clip(-5, 5)
+        # ).float()
+        rnd_next_obs = next_obs / 255.
 
         clipfracs = []
         for epoch in range(args.update_epochs):

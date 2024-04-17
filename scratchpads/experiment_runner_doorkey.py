@@ -10,7 +10,7 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd'
+    wandb_project_name: str = 'gridworld-rnd-no-rms'
     """track the experiment"""
     repeats: int = 8
     """number of times to repeat"""
