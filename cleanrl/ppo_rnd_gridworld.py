@@ -47,7 +47,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/NoisyDoorKey8x8-Gridworld-v0"
+    env_id: str = "Visual/MultiRoomS10N6-Gridworld-v0"
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
@@ -286,7 +286,10 @@ class RNDModel(nn.Module):
         t = torch.Tensor(t).unfold(1, w, 1) \
                      .unfold(0, h, 1) \
                      .reshape(-1, w, h)
-        t = cv2.resize(t.swapdims(0, -1).numpy(), (x, y), interpolation=cv2.INTER_CUBIC)
+        templates = []
+        for template in t.split(512):
+            templates.append(cv2.resize(template.swapdims(0, -1).numpy(), (x, y), interpolation=cv2.INTER_CUBIC))
+        t = np.concatenate(templates, axis=-1)
         t = torch.Tensor(t) > (w * (w - args.template_size))
         t = t.swapdims(-1, 0)
         t = F.relu(t.float() - args.alpha) + args.alpha
