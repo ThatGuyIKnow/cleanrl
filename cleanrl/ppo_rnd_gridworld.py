@@ -567,7 +567,7 @@ if __name__ == "__main__":
         #         / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
         #     ).clip(-5, 5)
         # ).float()
-        rnd_next_obs = next_obs.to(device) / 255.
+        rnd_next_obs = b_obs.to(device) / 255.
 
         clipfracs = []
         for epoch in range(args.update_epochs):
