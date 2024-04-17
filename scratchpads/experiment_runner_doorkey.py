@@ -12,7 +12,7 @@ class Args:
     """track the experiment"""
     wandb_project_name: str = 'gridworld-rnd'
     """track the experiment"""
-    repeats: int = 4
+    repeats: int = 8
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -28,7 +28,7 @@ class Args:
     """avaiable"""
     mode: str = 'hard'
     """difficulty"""
-    seed: int = 43
+    seed: int = 1
     """seed"""
     max_workers: int = 4
     """Max gpu workeres"""
@@ -38,15 +38,15 @@ args = tyro.cli(Args)
 env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 0.2', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.2', 'doorkey6x6'),
-    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8'),
-    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16'),
+    # ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8'),
+    # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16'),
 ]
 
 noisy_env_ids_and_tags = [
     # ('Visual/NoisyDoorKey5x5-Gridworld-v0', 'doorkey5x5,noisy'),
     # ('Visual/NoisyDoorKey6x6-Gridworld-v0', 'doorkey6x6,noisy'),
-    ('Visual/NoisyDoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8,noisy'),
-    ('Visual/NoisyDoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16,noisy'),
+    ('Visual/NoisyDoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.01', 'doorkey8x8,noisy'),
+    # ('Visual/NoisyDoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16,noisy'),
 ]
 
 @dataclass(frozen=True)
@@ -151,16 +151,16 @@ if __name__ == '__main__':
     print(f' ===== No. experiments: {len(commands)} ===== ', *commands, sep='\n')
 
 
-    # Using ThreadPoolExecutor to manage concurrent execution
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
-        # Map commands to future tasks
-        future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
-        # As each command completes, print its result
-        for future in concurrent.futures.as_completed(future_to_cmd):
-            cmd = future_to_cmd[future]
-            try:
-                result = future.result()
-                print(f"Result: '{result}' from '{cmd}'")
-            except Exception as exc:
-                print(f"Command '{cmd}' generated an exception: {exc}")
+    # # Using ThreadPoolExecutor to manage concurrent execution
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+    #     # Map commands to future tasks
+    #     future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
+    #     # As each command completes, print its result
+    #     for future in concurrent.futures.as_completed(future_to_cmd):
+    #         cmd = future_to_cmd[future]
+    #         try:
+    #             result = future.result()
+    #             print(f"Result: '{result}' from '{cmd}'")
+    #         except Exception as exc:
+    #             print(f"Command '{cmd}' generated an exception: {exc}")
 
