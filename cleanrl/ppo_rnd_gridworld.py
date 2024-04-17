@@ -107,6 +107,9 @@ class Args:
     """use templating approach"""
     template_size: int = 3
     """masking template cell size"""
+    alpha: float = 0.1
+    """transparancy"""
+    
 
     # to be filled in runtime
     batch_size: int = 0
@@ -283,7 +286,8 @@ class RNDModel(nn.Module):
                      .reshape(-1, w, h)
         t = cv2.resize(t.swapdims(0, -1).numpy(), (x, y), interpolation=cv2.INTER_NEAREST_EXACT)
         t = torch.Tensor(t) > (w * (w - args.template_size))
-        t = t.swapdims(-1, 0).bool()
+        t = t.swapdims(-1, 0)
+        t = F.relu(t.float() - args.alpha) + args.alpha
         return t.to(device)
     
     def make_template(self, positions):
@@ -465,13 +469,12 @@ if __name__ == "__main__":
             done = done | truncated
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
-            # rnd_next_obs = (
-            #     (
-            #         (next_obs - torch.from_numpy(obs_rms.mean).to(device))
-            #         / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
-            #     ).clip(-5, 5)
-            # ).float()
-            rnd_next_obs = next_obs.to(device) / 255.
+            rnd_next_obs = (
+                (
+                    (next_obs - torch.from_numpy(obs_rms.mean).to(device))
+                    / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
+                ).clip(-5, 5)
+            ).float()
             target_next_feature = rnd_model.target(rnd_next_obs, player_pos[step])
             predict_next_feature = rnd_model.predictor(rnd_next_obs, player_pos[step])
             curiosity_rewards[step] = ((target_next_feature - predict_next_feature).pow(2).sum(1) / 2).data
@@ -561,13 +564,12 @@ if __name__ == "__main__":
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
 
-        # rnd_next_obs = (
-        #     (
-        #         (b_obs - torch.from_numpy(obs_rms.mean).to(device))
-        #         / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
-        #     ).clip(-5, 5)
-        # ).float()
-        rnd_next_obs = b_obs.to(device) / 255.
+        rnd_next_obs = (
+            (
+                (b_obs - torch.from_numpy(obs_rms.mean).to(device))
+                / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
+            ).clip(-5, 5)
+        ).float()
 
         clipfracs = []
         for epoch in range(args.update_epochs):
