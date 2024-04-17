@@ -471,7 +471,7 @@ if __name__ == "__main__":
             #         / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
             #     ).clip(-5, 5)
             # ).float()
-            rnd_next_obs = next_obs / 255.
+            rnd_next_obs = next_obs.to(device) / 255.
             target_next_feature = rnd_model.target(rnd_next_obs, player_pos[step])
             predict_next_feature = rnd_model.predictor(rnd_next_obs, player_pos[step])
             curiosity_rewards[step] = ((target_next_feature - predict_next_feature).pow(2).sum(1) / 2).data
@@ -567,7 +567,7 @@ if __name__ == "__main__":
         #         / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
         #     ).clip(-5, 5)
         # ).float()
-        rnd_next_obs = next_obs / 255.
+        rnd_next_obs = next_obs.to(device) / 255.
 
         clipfracs = []
         for epoch in range(args.update_epochs):
