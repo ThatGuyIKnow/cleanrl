@@ -51,6 +51,8 @@ class Args:
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
+    cell_size: int = 10
+    '''cell pixel size'''
     total_timesteps: int = int(13e6)
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
@@ -373,7 +375,7 @@ if __name__ == "__main__":
     # env setup
     env_kwargs = dict(
         num_envs=args.num_envs,
-        cell_size=10,
+        cell_size=args.cell_size,
         fixed=args.fixed,
         seed=args.seed,)
     if args.env_mode is not None:

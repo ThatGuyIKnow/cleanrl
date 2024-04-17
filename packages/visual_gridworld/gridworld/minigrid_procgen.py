@@ -268,9 +268,19 @@ class MultiRoomGridworld(GridWorldGeneration):
         self.max_room_size = max_room_size
 
 
+        self.grid = None
+        if self.fixed:
+            self.grid, self.player_pos, self.player_direction, self.door_list = self.generate_grid_world()
+
     def generate_grid_world(self):
         if self.fixed:
             self.random = np.random.RandomState(self.seed)
+
+        if self.grid is not None:
+            return (self.grid.copy(),
+                    self.player_pos.copy(),
+                    Direction(self.player_direction.value),
+                    self.door_list.copy())
         width = self.width
         height = self.height
         room_count = self.room_count
@@ -288,7 +298,7 @@ class MultiRoomGridworld(GridWorldGeneration):
 
         (last_x, last_y), _ = room_list[-1]
         grid[last_x + 1, last_y + 1] = CellType.GOAL.value
-        player_pos = (room_list[0][0][0] + 1, room_list[0][0][1] + 1)
+        player_pos = np.array((room_list[0][0][0] + 1, room_list[0][0][1] + 1))
 
         player_direction = Direction.turn_left(Direction.UP, self.random.choice(4))
 
@@ -792,7 +802,7 @@ class MultiRoomS10N6GridWorld(Gridworld):
     _max_episode_steps= room_count * 20
 
     def __init__(self, cell_size = 30, num_envs=1, fixed = False, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
-        width = height = self.room_count * self.max_room_size
+        width = height = int(self.room_count * self.max_room_size / 3)
         grid_gen = MultiRoomGridworld(seed, fixed, width=width, height=height, room_count=self.room_count, max_room_size=self.max_room_size)
         random_tile = RandomLuminationTiles(cell_size, seed)
         super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps)
