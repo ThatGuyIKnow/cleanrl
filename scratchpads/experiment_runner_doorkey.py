@@ -22,7 +22,7 @@ class Args:
     """avaliable device ids"""
     include_none_rnd: bool = False
     """avaliable device ids"""
-    include_noisy: bool = True
+    include_noisy: bool = False
     """avaliable device ids"""
     include_template: bool = True
     """avaiable"""
@@ -40,6 +40,7 @@ env_ids_and_tags = [
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.2', 'doorkey6x6'),
     # ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8'),
     # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16'),
+    ('Visual/MultiRoomS10N6-Gridworld-v0'+ ' --cell_size 5 --total-timesteps 5000000 --int-coef 0.01 --ext-coef 20 --update_epochs 8', 'multiroomS10N6,noisy'),
 ]
 
 noisy_env_ids_and_tags = [
@@ -47,7 +48,7 @@ noisy_env_ids_and_tags = [
     # ('Visual/NoisyDoorKey6x6-Gridworld-v0', 'doorkey6x6,noisy'),
     # ('Visual/NoisyDoorKey8x8-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.01 --ext-coef 20 --update_epochs 8', 'doorkey8x8,noisy'),
     # ('Visual/NoisyDoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16,noisy'),
-    ('Visual/NoisyMultiRoomS10N6-Gridworld-v0'+ ' --cell_size 5 --total-timesteps 5000000 --int-coef 0.01 --ext-coef 20 --update_epochs 8', 'multiroomS10N6,noisy'),
+    # ('Visual/NoisyMultiRoomS10N6-Gridworld-v0'+ ' --cell_size 5 --total-timesteps 5000000 --int-coef 0.01 --ext-coef 20 --update_epochs 8', 'multiroomS10N6,noisy'),
 ]
 
 @dataclass(frozen=True)
