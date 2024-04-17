@@ -425,6 +425,7 @@ if __name__ == "__main__":
     start_time = time.time()
     next_obs, info = envs.reset()
     next_obs = torch.Tensor(next_obs).to(device)
+    next_player_pos = torch.from_numpy(envs.get_player_position())
     next_done = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
 
@@ -458,7 +459,7 @@ if __name__ == "__main__":
         for step in range(0, args.num_steps):
             global_step += 1 * args.num_envs
             obs[step] = next_obs
-            player_pos[step] = torch.from_numpy(envs.get_player_position())
+            player_pos[step] = next_player_pos
             dones[step] = next_done
 
             # ALGO LOGIC: action logic
@@ -478,8 +479,8 @@ if __name__ == "__main__":
             done = done | truncated
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
-            
-            mask = rnd_model.make_template(envs.get_player_position())
+            next_player_pos = torch.from_numpy(envs.get_player_position())
+            mask = rnd_model.make_template(next_player_pos)
             masked_next_obs = mask * next_obs
             rnd_next_obs = (
                 (
