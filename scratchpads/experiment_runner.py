@@ -34,10 +34,10 @@ class Args:
 args = tyro.cli(Args)
 
 env_ids_and_tags = [
-    ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
-    ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
-    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 1.0 --update_epochs 8', 'doorkey8x8'),
-    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 1.0 --update_epochs 8', 'doorkey16x16'),
+    # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
+    # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
+    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey8x8'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 15000000 --int-coef 1.0 --update_epochs 8', 'doorkey16x16'),
     ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'multiroomS4N2'),
     ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'multiroomS5N4'),
     ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'multiroomS10N6'),
@@ -114,7 +114,7 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld.py --ext-coef 2.0 --ent-coef 0.005 --learning-rate 0.00005 --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld.py --ext-coef 1.0 --ent-coef 0.005 --learning-rate 0.00005 --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
