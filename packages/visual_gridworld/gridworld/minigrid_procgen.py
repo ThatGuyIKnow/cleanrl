@@ -531,7 +531,7 @@ class Gridworld(gymnasium.Env):
 
         self.info['rooms_visited'][index] = 1
         self.info['step_count'][index] = 0
-        self.info['current_room'][index] = 0
+        self.info['current_room'][index] = 1
         self.info['episodic_return'][index] = 0
 
         # observation = self.rgb_render()
