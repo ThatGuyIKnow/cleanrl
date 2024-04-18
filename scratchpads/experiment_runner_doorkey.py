@@ -39,8 +39,8 @@ env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 0.2', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.2', 'doorkey6x6'),
     # ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 4000000 --int-coef 0.2', 'doorkey8x8'),
-    # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.2', 'doorkey16x16'),
-    ('Visual/MultiRoomS10N6-Gridworld-v0'+ ' --cell_size 3 --total-timesteps 5000000 --int-coef 1.0 --ext-coef 4.0 --update_epochs 8', 'multiroomS10N6'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 20000000 --int-coef 0.1 --ext-coef 4.0 --update_epochs 8', 'doorkey16x16'),
+    # ('Visual/MultiRoomS10N6-Gridworld-v0'+ ' --cell_size 3 --total-timesteps 5000000 --int-coef 1.0 --ext-coef 4.0 --update_epochs 8', 'multiroomS10N6'),
 ]
 
 noisy_env_ids_and_tags = [
