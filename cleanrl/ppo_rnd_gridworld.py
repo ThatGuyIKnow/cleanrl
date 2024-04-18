@@ -447,7 +447,10 @@ if __name__ == "__main__":
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
             next_ob = np.stack(next_ob)
             mask = torch.stack(masks).cpu().numpy()
-            obs_rms.update(next_ob * mask)
+            if args.use_template:
+                obs_rms.update(next_ob * mask)
+            else:
+                obs_rms.update(next_ob)
             next_ob = []
             masks = []
     print("End to initialize...")
@@ -484,7 +487,9 @@ if __name__ == "__main__":
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
             next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
             mask = rnd_model.make_template(next_player_pos)
-            masked_next_obs = mask * next_obs
+            masked_next_obs = next_obs
+            if args.use_template:
+                masked_next_obs *= mask
             rnd_next_obs = (
                 (
                     (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
@@ -583,7 +588,9 @@ if __name__ == "__main__":
         b_advantages = b_int_advantages * args.int_coef + b_ext_advantages * args.ext_coef
 
         mask = rnd_model.make_template(b_player_pos)
-        masked_b_obs = mask * b_obs
+        masked_b_obs = b_obs
+        if args.use_template:
+            masked_b_obs *= mask
         obs_rms.update(masked_b_obs.cpu().numpy())
 
         # Optimizing the policy and value network
