@@ -13,6 +13,45 @@ import torch.nn.functional as F
 import torchhd
 from torchhd.models import Centroid
 from torchhd import embeddings
+import os
+import sys
+from types import ModuleType
+from typing import Sequence, Tuple
+import gymnasium as gym
+# import gym
+
+from sklearn.metrics import classification_report
+from sklearn.neural_network import MLPClassifier
+from sklearn.svm import SVC
+import torch
+import torch.nn as nn
+
+from EpisodeDataset import EpisodeDataset, ProcgenEpisodeDataset
+
+import torch
+from torch.utils.data import DataLoader
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.optim import Adam, lr_scheduler
+
+if torch.cuda.is_available():
+  device = torch.device("cuda")
+else:
+  device = torch.device("cpu")
+  import matplotlib.pyplot as plt
+import torch
+import numpy as np
+
+from typing import List
+
+import visual_gridworld
+from visual_gridworld.gridworld.minigrid_procgen import GridworldResizeObservation # absolute import
+
+
+
 
 VSA='MAP'
 
@@ -127,8 +166,8 @@ def collect_samples(env_name, num_episodes, max_steps_per_episode):
     return samples
 
 # Example usage
-env_name = 'MiniGrid-MultiRoom-N6-v0'  # Specify the environment
-num_episodes = 400
+env_name = 'Visual/DoorKey16x16-Gridworld-v0'  # Specify the environment
+num_episodes = 10
 max_steps_per_episode = 50
 samples = collect_samples(env_name, num_episodes, max_steps_per_episode)
 
@@ -172,7 +211,7 @@ for sample in samples:
         obs = []
     
 
-    obs_enc = novelty_detector.encode_state(torch.Tensor(observation['image'])[None, :])
+    obs_enc = novelty_detector.encode_state(torch.Tensor(observation)[None, :])
     obs.insert(0, obs_enc)
     state_vector.append(obs_enc)
 

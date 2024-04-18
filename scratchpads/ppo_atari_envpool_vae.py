@@ -6,7 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 
 import envpool
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,6 +15,8 @@ import torch.nn.functional as F
 import tyro
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+import visual_gridworld
+from visual_gridworld.gridworld.minigrid_procgen import GridworldResizeObservation
 
 
 @dataclass
@@ -39,7 +41,7 @@ class Args:
     """Device to train on"""
     
     # Algorithm specific arguments
-    env_id: str = "Breakout-v5"
+    env_id: str = "Visual/DoorKey16x16-Gridworld-v0"
     """the id of the environment"""
     total_timesteps: int = int(1e7)
     """total timesteps of the experiments"""
@@ -80,6 +82,8 @@ class Args:
     """VAE channelwise decorrelation coef loss"""
     vae_update_freq: int = 1    
     """VAE update frequency"""
+    vae_batch_size: int = 64
+    """VAE batch size"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -89,33 +93,27 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
-
 class RecordEpisodeStatistics(gym.Wrapper):
     def __init__(self, env, deque_size=100):
         super().__init__(env)
-        self.num_envs = getattr(env, "num_envs", 1)
+        self.num_envs = 1
         self.episode_returns = None
         self.episode_lengths = None
 
     def reset(self, **kwargs):
-        observations = super().reset(**kwargs)
+        observations, info = super().reset(**kwargs)
+        self.num_envs = observations.shape[0]
         self.episode_returns = np.zeros(self.num_envs, dtype=np.float32)
-        self.episode_lengths = np.zeros(self.num_envs, dtype=np.int32)
-        self.lives = np.zeros(self.num_envs, dtype=np.int32)
         self.returned_episode_returns = np.zeros(self.num_envs, dtype=np.float32)
-        self.returned_episode_lengths = np.zeros(self.num_envs, dtype=np.int32)
-        return observations
+        return observations, info
 
     def step(self, action):
         observations, rewards, dones, truncated, infos = super().step(action)
-        self.episode_returns += infos["reward"]
-        self.episode_lengths += 1
+        self.episode_returns = infos["episodic_return"]
         self.returned_episode_returns[:] = self.episode_returns
-        self.returned_episode_lengths[:] = self.episode_lengths
         self.episode_returns *= 1 - (dones | truncated)
-        self.episode_lengths *= 1 - (dones | truncated)
         infos["r"] = self.returned_episode_returns
-        infos["l"] = self.returned_episode_lengths
+        infos["l"] = infos["step_count"]
         return (
             observations,
             rewards,
@@ -124,6 +122,30 @@ class RecordEpisodeStatistics(gym.Wrapper):
             infos,
         )
 
+
+class FirstChannelPositionWrapper(gym.Wrapper):
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        obs_shape = self.observation_space.shape
+        self.observation_space = gym.spaces.Box(0, 255, (obs_shape[0], obs_shape[-1], *obs_shape[1:3]))
+        self.single_observation_space = gym.spaces.Box(0, 255, (obs_shape[-1], *obs_shape[1:3]))
+
+    def reset(self, **kwargs):
+        observations, info = super().reset(**kwargs)
+        observations = np.moveaxis(observations, -1, -3)
+        return observations, info
+
+    def step(self, action):
+        observations, rewards, dones, truncated, infos = super().step(action)
+        observations = np.moveaxis(observations, -1, -3)
+        return (
+            observations,
+            rewards,
+            dones,
+            truncated,
+            infos,
+        )
+    
 def channelwise_covariance_loss(Z):
     """
     Computes the loss to encourage decorrelation between channels of the latent variable Z.
@@ -168,16 +190,20 @@ class VAE(nn.Module):
 
         # Encoder
         self.encoder = nn.Sequential(
-            layer_init(nn.Conv2d(input_channels, 32, 8, stride=4)),
+            layer_init(nn.Conv2d(3, 32, 8, stride=4)),
             nn.ReLU(),
             layer_init(nn.Conv2d(32, 64, 4, stride=2)),
             nn.ReLU(),
             layer_init(nn.Conv2d(64, 64, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
+            layer_init(nn.Linear(self.cnn_out, 256)),
+            nn.ReLU(),
+            layer_init(nn.Linear(256, 448)),
+            nn.ReLU(),
         )
-        self.fc_mu = layer_init(nn.Linear(self.cnn_out, latent_dim * latent_channels))
-        self.fc_log_var = layer_init(nn.Linear(self.cnn_out, latent_dim * latent_channels))
+        self.fc_mu = layer_init(nn.Linear(448, latent_dim * latent_channels))
+        self.fc_log_var = layer_init(nn.Linear(448, latent_dim * latent_channels))
         
         # Decoder
         self.decoder_input = layer_init(nn.Linear(latent_dim * latent_channels, self.cnn_out))
@@ -278,20 +304,17 @@ if __name__ == "__main__":
     else:
         device = torch.device(args.device)
 
-    # env setup
-    envs = envpool.make(
+    envs = gym.make(
         args.env_id,
-        env_type="gym",
         num_envs=args.num_envs,
-        episodic_life=True,
-        reward_clip=True,
+        cell_size=10,
+        fixed=True,
         seed=args.seed,
     )
+    envs = GridworldResizeObservation(envs, (84, 84))
     envs.num_envs = args.num_envs
-    envs.single_action_space = envs.action_space
-    envs.single_observation_space = envs.observation_space
     envs = RecordEpisodeStatistics(envs)
-    assert isinstance(envs.action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    envs = FirstChannelPositionWrapper(envs)
 
     agent = Agent(envs).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -414,23 +437,30 @@ if __name__ == "__main__":
                 loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
 
 
-                if global_step % args.vae_update_freq == 0:
-                    # Reconstruction loss
-                    mu, log_var = agent.network.encode(b_obs[b_inds] / 255.)
-                    z = agent.network.reparameterize(mu, log_var)
-                    recon = agent.network.decode(z)
-
-                    rc_loss = F.huber_loss(recon, b_obs[b_inds, -1:] / 255.)
-                    kl_div_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
-                    c_decorr_loss = channelwise_covariance_loss(mu)
-
-                    loss += args.recon_coef * (rc_loss + kl_div_loss + args.decorr_coef * c_decorr_loss)
-
-
                 optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
                 optimizer.step()
+
+
+                if global_step % args.vae_update_freq == 0:
+                    no_minibatches = len(b_inds)//args.vae_batch_size
+                    for batch_inds in np.split(b_inds, no_minibatches):
+                        # Reconstruction loss
+                        mu, log_var = agent.network.encode(b_obs[batch_inds] / 255.)
+                        z = agent.network.reparameterize(mu, log_var)
+                        recon = agent.network.decode(z)
+
+                        rc_loss = F.huber_loss(recon, b_obs[batch_inds, -1:] / 255.)
+                        kl_div_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+                        c_decorr_loss = channelwise_covariance_loss(mu)
+
+                        loss = args.recon_coef * (rc_loss + kl_div_loss + args.decorr_coef * c_decorr_loss)
+
+                        optimizer.zero_grad()
+                        loss.backward()
+                        nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
+                        optimizer.step()
 
             if args.target_kl is not None and approx_kl > args.target_kl:
                 break
