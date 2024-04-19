@@ -22,7 +22,7 @@ class Args:
     """avaliable device ids"""
     include_none_rnd: bool = False
     """avaliable device ids"""
-    include_noisy: bool = True
+    include_noisy: bool = False
     """avaliable device ids"""
     include_template: bool = True
     """avaiable"""
