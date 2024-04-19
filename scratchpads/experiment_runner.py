@@ -37,17 +37,17 @@ env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
     # ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey8x8'),
-    # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 15000000 --int-coef 1.0 --update_epochs 8', 'doorkey16x16'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 30000000 --int-coef 1.0 --update_epochs 8', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'multiroomS4N2'),
     # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'multiroomS5N4'),
     # ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'multiroomS10N6'),
     # ('Visual/NoisyDoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5,noisy'),
     # ('Visual/NoisyDoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6,noisy'),
-    ('Visual/NoisyDoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey8x8,noisy'),
-    ('Visual/NoisyDoorKey16x16-Gridworld-v0' + ' --total-timesteps 15000000 --int-coef 1.0 --update_epochs 8', 'doorkey16x16,noisy'),
-    ('Visual/NoisyMultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'multiroomS4N2,noisy'),
-    ('Visual/NoisyMultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'multiroomS5N4,noisy'),
-    ('Visual/NoisyMultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'multiroomS10N6,noisy'),
+    ('Visual/NoisyDoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.01 --update_epochs 8', 'doorkey8x8,noisy'),
+    ('Visual/NoisyDoorKey16x16-Gridworld-v0' + ' --total-timesteps 30000000 --int-coef 0.01 --update_epochs 8', 'doorkey16x16,noisy'),
+    ('Visual/NoisyMultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000 --int-coef 0.01 --update_epochs 8', 'multiroomS4N2,noisy'),
+    ('Visual/NoisyMultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.01 --update_epochs 8', 'multiroomS5N4,noisy'),
+    ('Visual/NoisyMultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.01 --update_epochs 8', 'multiroomS10N6,noisy'),
 ]
 
 noisy_env_ids_and_tags = [
