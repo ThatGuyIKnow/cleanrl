@@ -3,11 +3,10 @@ from sklearn.metrics import classification_report
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.jit import ScriptModule, script_method, script
+from torch.jit import script
 from torch import Tensor
 from typing import List, Literal, Optional, Sequence, Tuple, Union
 from functools import partial
-
 
 
 @script
@@ -43,20 +42,18 @@ class Template(nn.Module):
         # Initially create templates based on the current variance
         self.create_new_templates(self._curr_var())
 
-
     @torch.jit.export
     def _curr_var(self, mixin: Optional[float] = None) -> int:
         # Determine the current variance based on the mixin factor
         # If `var` is a fixed int, just return it. If it's a tuple, interpolate.
         if mixin is None:
-            print(int(self.var[0] + self._mixin_factor * (self.var[1] - self.var[0])))
             return int(self.var[0] + self._mixin_factor * (self.var[1] - self.var[0]))
-        print(int(self.var[0] + mixin * (self.var[1] - self.var[0])))
         return int(self.var[0] + mixin * (self.var[1] - self.var[0]))
     
     @torch.jit.export
     def set_mixin_factor(self, mixin_factor: float) -> None:
-        # Update the mixin factor, ensuring it remains between 0 and 1
+        # self.cutoff = max(0., min(1., mixin_factor))
+        # # Update the mixin factor, ensuring it remains between 0 and 1
         _mixin_factor = max(0., min(1., mixin_factor))
         
         # If `var` is not a fixed value, recreate templates with the new variance
@@ -90,11 +87,19 @@ class Template(nn.Module):
         templates = torch.cat([templates, neg_template], 0)
         self.templates_b = templates.requires_grad_(False).to(self.device)
 
+        if not hasattr(self, 'p_T'):
         # Probability distribution over templates
-        p_T = [alpha / n_square for _ in range(self.templates_f.shape[0])]
-        p_T.append(1 - alpha)  # Add probability for the negative template
-        self.p_T = torch.FloatTensor(p_T).requires_grad_(False).to(self.device)
+            p_T = [alpha / n_square for _ in range(self.templates_f.shape[0])]
+            p_T.append(1 - alpha)  # Add probability for the negative template
+            self.p_T = torch.FloatTensor(p_T).requires_grad_(False).to(self.device)
         
+    def get_mask_from_indices(self, indices: Tensor) -> Tensor:
+        # Select templates for each index found by max pooling
+        selected_templates = torch.stack([self.templates_f[(i/(self.stride**2)).long()] for i in indices], dim=0)
+        # Apply the selected templates to the input and return the masked input and the templates
+        mask = (selected_templates / selected_templates.max())
+        mask = F.relu(mask - self.cutoff) / self.cutoff
+        return mask        
 
     def get_masked_output(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         # For each element in the batch, find the max pool index to select the corresponding template
@@ -102,12 +107,10 @@ class Template(nn.Module):
         indices = indices.view(x.shape[:2]).long()
         
         # Interpolate between the identity mask and the filtered templates based on mixin_factor
+        mask = self.get_mask_from_indices(indices)
         # templates = torch.lerp(self.identity_mask, self.templates_f, self._mixin_factor)
-        # Select templates for each index found by max pooling
-        selected_templates = torch.stack([self.templates_f[(i/(self.stride**2)).long()] for i in indices], dim=0)
-        # Apply the selected templates to the input and return the masked input and the templates
-        x_masked = F.relu(x * selected_templates / selected_templates.max())
-        return x_masked, selected_templates
+        x_masked = x * mask
+        return x_masked, mask
     
     def compute_local_loss(self, x: Tensor) -> Tensor:  
         # Calculate the tensor dot product between input x and templates, then softmax to get probabilities
@@ -192,9 +195,10 @@ class ActionPredictor(nn.Module):
         self.action_dim = action_dim
 
         self.preprocess = nn.Sequential(
-            nn.Conv2d(input_channels, 16, kernel_size=8, padding=4),
+            # nn.BatchNorm2D(),
+            nn.Conv2d(input_channels, 1, kernel_size=8, padding=4),
             nn.ReLU(),
-            SqueezeAggregateLayer(16, n_templates, aggregate='sum')
+            SqueezeAggregateLayer(1, n_templates, aggregate='sum')
         )
 
         with torch.no_grad():
@@ -294,7 +298,6 @@ class ActionPredictor(nn.Module):
 
         return selected_templates
     
-
 
 def preprocess(x: Tensor) -> Tensor:
     x = x / 255.
