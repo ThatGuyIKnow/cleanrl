@@ -227,11 +227,13 @@ class SiameseAttentionNetwork(nn.Module):
         att1 = F.softmax(att1, dim=1).unsqueeze(2).unsqueeze(3)
         att2 = F.softmax(att2, dim=1).unsqueeze(2).unsqueeze(3)
 
-        if self.mask:
-            out1, obs_mask, local_loss = self.template(out1.sum(dim=1)[:,None], train=True)
-            out2, obs_mask, local_loss = self.template(out2.sum(dim=1)[:,None], train=True)
+        out1 = out1.sum(dim=1)[:,None]
+        out2 = out2.sum(dim=1)[:,None]
 
-        
+        if self.mask:
+            out1, obs_mask, local_loss = self.template(out1, train=True)
+            out2, obs_mask, local_loss = self.template(out2, train=True)
+
         # Apply spatial attention
         out1 = out1 * att1
         out2 = out2 * att2
