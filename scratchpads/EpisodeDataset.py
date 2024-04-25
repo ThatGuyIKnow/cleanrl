@@ -220,3 +220,74 @@ class MultiEpisodeDataset(Dataset):
         # The total length is just the size of the accumulated states
         return len(self.states)
     
+class GridworldEpisodeDataset(Dataset):
+    def __init__(self, env_fn, max_steps=1000, episodes_per_epoch=2, skip_first=0, repeat_action=1, device='cpu'):
+        self.env_fn = env_fn
+        self.max_steps = max_steps
+        self.episodes_per_epoch = episodes_per_epoch
+        self.env = env_fn()
+        self.n_classes = self.env.single_action_space.n
+        self.device = device
+        self.skip_first = skip_first
+        self.repeat_action = repeat_action
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.next_states = []
+        self.player_positions = []
+        self.dones = []
+
+        if skip_first > max_steps:
+            raise Exception('EpisodeDataset Error: skip_first must be less than max_steps.')
+
+        # Initially populate the dataset
+        self._generate_episodes()
+
+    def _generate_episodes(self):
+        # Reset dataset
+        self.states.clear()
+        self.actions.clear()
+        self.player_positions.clear()
+        self.rewards.clear()
+        self.next_states.clear()
+        self.dones.clear()
+
+        for _ in tqdm(range(self.episodes_per_epoch)):
+            obs, _ = self.env.reset()
+
+            for step in range(self.max_steps):
+                if step % self.repeat_action == 0:
+                    action = self.env.action_space.sample()
+
+                next_obs, rs, ds, truncated, infos = self.env.step(action)
+                player_pos = self.env.get_player_position()
+                if step >= self.skip_first:
+                    self.states.extend(obs.copy())
+                    self.actions.extend(action.copy())
+                    self.rewards.extend(rs.copy())
+                    self.next_states.extend(next_obs.copy())
+                    self.player_positions.extend(player_pos.copy())
+                    self.dones.extend(ds.copy())
+
+                obs = next_obs
+
+                if any(ds) or any(truncated):
+                    # If episode ends, start a new episode until we reach the desired number of steps
+                    obs, _ = self.env.reset()
+
+    def __getitem__(self, idx):
+        # Convert numpy arrays to tensors
+        state = torch.tensor(self.states[idx], dtype=torch.float, device=self.device, requires_grad=True)
+        action = torch.tensor(self.actions[idx], dtype=torch.long, device=self.device)
+        action = F.one_hot(action, self.n_classes).to(torch.float32).requires_grad_()
+        reward = torch.tensor(self.rewards[idx], dtype=torch.float, device=self.device, requires_grad=True)
+        next_state = torch.tensor(self.next_states[idx], dtype=torch.float, device=self.device, requires_grad=True)
+        done = torch.tensor(self.dones[idx], dtype=torch.float, device=self.device, requires_grad=True)
+        player_pos = torch.tensor(self.player_positions[idx], dtype=torch.int32, device=self.device, requires_grad=False)
+
+        return state, action, reward, done, next_state, player_pos
+
+    def __len__(self):
+        # The total length is just the size of the accumulated states
+        return len(self.states)
+    
