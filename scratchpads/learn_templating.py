@@ -314,9 +314,10 @@ self, M: int, out_size: int, var: torch.IntTensor, stride: int = 1,
 def train(train_loader, name):
     # Create the base network
     base_network = BaseNetwork()
-
+    BaseNetwork().to(device)
     # Create the Siamese network
     net = SiameseAttentionNetwork(base_network, num_classes=4)
+    net.to(device)
     # net = ImageActionPredictor()
     # net.template.set_mixin_factor(0.0)
     criterion = nn.CrossEntropyLoss()
