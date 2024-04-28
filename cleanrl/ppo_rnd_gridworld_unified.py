@@ -1,3 +1,4 @@
+from itertools import pairwise
 import os
 import random
 import time
@@ -208,6 +209,7 @@ class SiameseAttentionNetwork(nn.Module):
         # out1 = out1.sum(dim=1)[:,None]
         # out2 = out2.sum(dim=1)[:,None]
 
+        local_loss1 = local_loss2 = 0
         if self.mask:
             out1, obs_mask, local_loss1 = self.template(out1, train=True)
             out2, obs_mask, local_loss2 = self.template(out2, train=True)
@@ -332,7 +334,8 @@ class Args:
     """transparancy"""
     train_mask_at: int = 10
     """start masking at step"""
-    
+    template_batch: int = 128
+    """train batches"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -883,8 +886,11 @@ if __name__ == "__main__":
                 
                 if global_step > args.train_mask_at:
                     template.net.mask = True
-
-                b_act_pred, local_loss = template(b_obs[mb_inds] / 255., b_next_obs[mb_inds] / 255.)
+            print(b_obs[mb_inds].shape)
+            for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
+                mb_mask_inds = b_inds[start:end]
+                b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
+                                                    b_next_obs[mb_mask_inds] / 255.)
                 b_act = F.one_hot(b_actions, action_n)
                 mask_loss = F.cross_entropy(b_act, b_act_pred) + local_loss
 
