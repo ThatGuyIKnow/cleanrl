@@ -229,7 +229,7 @@ class SiameseAttentionNetwork(nn.Module):
         out = F.relu(self.fc2(out))
         out = self.fc3(out)
         
-        return out, local_loss1 + local_loss2
+        return out, 0.05*(local_loss1 + local_loss2)
 
     def get_mask(self, x):
         # Forward pass through base network
@@ -332,7 +332,7 @@ class Args:
     """masking template cell size"""
     alpha: float = 0.0
     """transparancy"""
-    train_mask_at: int = 10
+    train_mask_at: int = 5e4
     """start masking at step"""
     template_batch: int = 128
     """train batches"""
@@ -892,8 +892,8 @@ if __name__ == "__main__":
                 b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
                                                     b_next_obs[mb_mask_inds] / 255.)
                 b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                mask_loss = F.cross_entropy(b_act, b_act_pred) + local_loss
-
+                mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss
+                
                 mask_optimizer.zero_grad()
                 mask_loss.backward()
                 mask_optimizer.step()
