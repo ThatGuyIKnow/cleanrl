@@ -884,7 +884,7 @@ if __name__ == "__main__":
                 if global_step > args.train_mask_at:
                     template.net.mask = True
 
-                b_act_pred, local_loss = template(b_obs / 255., b_next_obs[b_inds] / 255.)
+                b_act_pred, local_loss = template(b_obs[mb_inds] / 255., b_next_obs[mb_inds] / 255.)
                 b_act = F.one_hot(b_actions, action_n)
                 mask_loss = F.cross_entropy(b_act, b_act_pred) + local_loss
 
