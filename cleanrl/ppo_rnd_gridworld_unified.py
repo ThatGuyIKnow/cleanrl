@@ -276,7 +276,7 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 64
+    num_envs: int = 32
     """the number of parallel game environments"""
     num_steps: int = 128
     """the number of steps to run in each environment per policy rollout"""
@@ -646,7 +646,7 @@ if __name__ == "__main__":
     print("Start to initialize observation normalization parameter.....")
     next_ob = []
     masks = []
-    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init)):
+    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
         acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
         s, r, d, t, _ = envs.step(acs)
         next_ob += list(s)
