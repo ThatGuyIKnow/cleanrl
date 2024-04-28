@@ -700,11 +700,9 @@ if __name__ == "__main__":
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
             # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
-            mask = template.get_mask(next_obs.to(device) / 255.)
+            # mask = template.get_mask(next_obs.to(device) / 255.)
             # mask = rnd_model.make_template(next_player_pos)
             masked_next_obs = next_obs
-            if args.use_template:
-                masked_next_obs *= mask
             rnd_next_obs = (
                 (
                     (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
@@ -889,7 +887,7 @@ if __name__ == "__main__":
                 if global_step > args.train_mask_at:
                     template.net.mask = True
                     
-            if global_step % args.template_train_every == 0 and False:
+            if global_step % args.template_train_every == 0:
                 for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                     mb_mask_inds = b_inds[start:end]
                     b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
