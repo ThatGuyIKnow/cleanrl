@@ -650,8 +650,8 @@ if __name__ == "__main__":
         acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
         s, r, d, t, _ = envs.step(acs)
         next_ob += list(s)
-
-        m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
+        with torch.no_grad():
+            m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
         # p_pos = torch.from_numpy(envs.get_player_position()).to(device)
         # m = rnd_model.make_template(p_pos)
         masks += list(m)
