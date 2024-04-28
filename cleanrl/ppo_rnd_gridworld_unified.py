@@ -893,12 +893,12 @@ if __name__ == "__main__":
 
         if update % args.template_train_every == 0:
             b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
-            b_dones = dones.reshape((-1,)).cpu().numpy()
+            b_dones = dones.reshape((-1,)).cpu().bool().numpy()
 
             for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                 mb_dones = b_dones[start:end]
                 mb_mask_inds = b_inds[start:end]
-                valid_inds = ((~mb_dones.bool()) & (mb_mask_inds != (len(b_obs)-1))).bool()
+                valid_inds = ((~mb_dones) & (mb_mask_inds != (len(b_obs)-1)))
                 mb_mask_inds = mb_mask_inds[valid_inds]
 
                 
