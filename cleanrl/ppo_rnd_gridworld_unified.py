@@ -209,7 +209,7 @@ class SiameseAttentionNetwork(nn.Module):
         # out1 = out1.sum(dim=1)[:,None]
         # out2 = out2.sum(dim=1)[:,None]
 
-        local_loss1 = local_loss2 = torch.Tensor(1)
+        local_loss1 = local_loss2 = torch.zeros([out1.size(0)])
         if self.mask:
             out1, obs_mask, local_loss1 = self.template(out1, train=True)
             out2, obs_mask, local_loss2 = self.template(out2, train=True)
@@ -229,7 +229,7 @@ class SiameseAttentionNetwork(nn.Module):
         out = F.relu(self.fc2(out))
         out = self.fc3(out)
         
-        return out, 0.05*(local_loss1 + local_loss2)
+        return out, 0.5*(local_loss1 + local_loss2)
 
     def get_mask(self, x):
         # Forward pass through base network
@@ -891,11 +891,12 @@ if __name__ == "__main__":
                 if approx_kl > args.target_kl:
                     break
 
-        if global_step % args.template_train_every == 0:
+        if update % args.template_train_every == 0:
             for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                 mb_mask_inds = b_inds[start:end]
                 b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
                                                     b_next_obs[mb_mask_inds] / 255.)
+                local_loss = local_loss.mean()
                 b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
                 action_loss = F.cross_entropy(b_act, b_act_pred).mean() 
                 total_loss = action_loss + local_loss
