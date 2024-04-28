@@ -620,7 +620,7 @@ if __name__ == "__main__":
         template.parameters(),
         lr=1e-4,
     )
-
+    mask_criterion = nn.CrossEntropyLoss()
     reward_rms = RunningMeanStd()
     obs_rms = RunningMeanStd(shape=(1, *obs_shape[1:]))
     discounted_reward = RewardForwardFilter(args.int_gamma)
@@ -898,7 +898,7 @@ if __name__ == "__main__":
                                                     b_next_obs[mb_mask_inds] / 255.)
                 local_loss = local_loss.mean()
                 b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                action_loss = F.cross_entropy(b_act, b_act_pred).mean() 
+                action_loss = mask_criterion(b_act, b_act_pred)
                 total_loss = action_loss + local_loss
                 
                 mask_optimizer.zero_grad()
