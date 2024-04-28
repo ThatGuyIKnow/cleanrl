@@ -894,11 +894,11 @@ if __name__ == "__main__":
         if update % args.template_train_every == 0:
             for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                 end = min(end, len(obs)-1)
-                if start == end:
-                    break
                 mb_dones = b_dones[start:end]
                 mb_mask_inds = b_inds[start:end][mb_dones]
                 
+                if len(mb_mask_inds):
+                    continue
                 b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
                                                     b_obs[mb_mask_inds + 1] / 255.)
                 local_loss = local_loss.mean()
