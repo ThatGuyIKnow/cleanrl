@@ -638,7 +638,7 @@ if __name__ == "__main__":
     next_obs, info = envs.reset()
     next_obs = torch.Tensor(next_obs).to(device)
     # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
-    next_player_masks = template.get_mask(next_obs / 255.).to(device)
+    next_player_masks = template.get_mask(next_obs.to(device) / 255.)
     next_done = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
 
@@ -650,7 +650,7 @@ if __name__ == "__main__":
         s, r, d, t, _ = envs.step(acs)
         next_ob += list(s)
 
-        m = template.get_mask(torch.from_numpy(s) / 255.).to(device)
+        m = template.get_mask(torch.from_numpy(s).to(device) / 255.)
         # p_pos = torch.from_numpy(envs.get_player_position()).to(device)
         # m = rnd_model.make_template(p_pos)
         masks += list(m)
@@ -697,7 +697,7 @@ if __name__ == "__main__":
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
             # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
-            mask = template.get_mask(next_obs / 255.).to(device)
+            mask = template.get_mask(next_obs.to(device) / 255.)
             # mask = rnd_model.make_template(next_player_pos)
             masked_next_obs = next_obs
             if args.use_template:
