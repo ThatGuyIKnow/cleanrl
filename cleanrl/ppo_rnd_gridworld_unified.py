@@ -209,7 +209,7 @@ class SiameseAttentionNetwork(nn.Module):
         # out1 = out1.sum(dim=1)[:,None]
         # out2 = out2.sum(dim=1)[:,None]
 
-        local_loss1 = local_loss2 = torch.zeros([out1.size(0)])
+        local_loss1 = local_loss2 = torch.zeros([out1.size(0)]).to(device)
         if self.mask:
             out1, obs_mask, local_loss1 = self.template(out1, train=True)
             out2, obs_mask, local_loss2 = self.template(out2, train=True)
