@@ -227,7 +227,7 @@ class SiameseAttentionNetwork(nn.Module):
         # Classifier
         out = F.relu(self.fc1(merged_features.reshape(merged_features.size(0), -1)))
         out = F.relu(self.fc2(out))
-        out = self.fc3(out)
+        out = F.softmax(self.fc3(out))
         
         return out, 0.5*(local_loss1 + local_loss2)
 
