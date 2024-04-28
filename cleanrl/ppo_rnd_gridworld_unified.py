@@ -209,7 +209,7 @@ class SiameseAttentionNetwork(nn.Module):
         # out1 = out1.sum(dim=1)[:,None]
         # out2 = out2.sum(dim=1)[:,None]
 
-        local_loss1 = local_loss2 = 0
+        local_loss1 = local_loss2 = torch.Tensor(1)
         if self.mask:
             out1, obs_mask, local_loss1 = self.template(out1, train=True)
             out2, obs_mask, local_loss2 = self.template(out2, train=True)
@@ -897,11 +897,15 @@ if __name__ == "__main__":
                 b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
                                                     b_next_obs[mb_mask_inds] / 255.)
                 b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss.mean()
+                action_loss = F.cross_entropy(b_act, b_act_pred).mean() 
+                total_loss = action_loss + local_loss
                 
                 mask_optimizer.zero_grad()
-                mask_loss.backward()
+                total_loss.backward()
                 mask_optimizer.step()
+            writer.add_scalar("losses/action_loss", action_loss.item(), global_step)
+            writer.add_scalar("losses/local_mask_loss", local_loss.item(), global_step)
+            writer.add_scalar("losses/total_action_loss", total_loss.item(), global_step)
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
