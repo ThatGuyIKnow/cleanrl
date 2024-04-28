@@ -651,22 +651,23 @@ if __name__ == "__main__":
     print("Start to initialize observation normalization parameter.....")
     next_ob = []
     masks = []
-    # for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-    #     acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
-    #     s, r, d, t, _ = envs.step(acs)
-    #     next_ob += list(s)
-    #     with torch.no_grad():
-    #         m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
-    #     # p_pos = torch.from_numpy(envs.get_player_position()).to(device)
-    #     # m = rnd_model.make_template(p_pos)
-    #     masks += list(m)
+    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+        acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
+        s, r, d, t, _ = envs.step(acs)
+        next_ob += list(s)
+        with torch.no_grad():
+            m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
+        # p_pos = torch.from_numpy(envs.get_player_position()).to(device)
+        # m = rnd_model.make_template(p_pos)
+        masks += list(m)
 
-    #     if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-    #         next_ob = np.stack(next_ob)
-    #         mask = np.stack(masks)
-    #         obs_rms.update(next_ob * mask)
-    #         next_ob = []
-    #         masks = []
+        if len(next_ob) % (args.num_steps * args.num_envs) == 0:
+            next_ob = np.stack(next_ob)
+            mask = np.stack(masks)
+            obs_rms.update(next_ob * mask)
+            next_ob = []
+            masks = []
+            break
     print("End to initialize...")
 
     for update in range(1, num_updates + 1):
