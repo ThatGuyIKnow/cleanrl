@@ -640,7 +640,6 @@ if __name__ == "__main__":
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
-    start_time = time.time()
     next_obs, info = envs.reset()
     next_obs = torch.Tensor(next_obs).to(device)
     # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
@@ -668,6 +667,7 @@ if __name__ == "__main__":
             next_ob = []
             masks = []
     print("End to initialize...")
+    start_time = time.time()
 
     for update in range(1, num_updates + 1):
         # Annealing the rate if instructed to do so.
