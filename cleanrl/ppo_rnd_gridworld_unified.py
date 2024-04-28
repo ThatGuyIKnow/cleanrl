@@ -336,6 +336,8 @@ class Args:
     """start masking at step"""
     template_batch: int = 128
     """train batches"""
+    template_train_every: int = 10
+    """train every"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -886,17 +888,18 @@ if __name__ == "__main__":
                 
                 if global_step > args.train_mask_at:
                     template.net.mask = True
-            print(b_obs[mb_inds].shape)
-            for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
-                mb_mask_inds = b_inds[start:end]
-                b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
-                                                    b_next_obs[mb_mask_inds] / 255.)
-                b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss
-                
-                mask_optimizer.zero_grad()
-                mask_loss.backward()
-                mask_optimizer.step()
+                    
+            if global_step % args.template_train_every == 0:
+                for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
+                    mb_mask_inds = b_inds[start:end]
+                    b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
+                                                        b_next_obs[mb_mask_inds] / 255.)
+                    b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
+                    mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss
+                    
+                    mask_optimizer.zero_grad()
+                    mask_loss.backward()
+                    mask_optimizer.step()
 
             if args.target_kl is not None:
                 if approx_kl > args.target_kl:
