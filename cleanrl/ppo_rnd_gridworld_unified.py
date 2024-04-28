@@ -649,25 +649,24 @@ if __name__ == "__main__":
     num_updates = args.total_timesteps // args.batch_size
 
     print("Start to initialize observation normalization parameter.....")
-    next_ob = []
-    masks = []
-    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-        acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
-        s, r, d, t, _ = envs.step(acs)
-        next_ob += list(s)
-        with torch.no_grad():
-            m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
-        # p_pos = torch.from_numpy(envs.get_player_position()).to(device)
-        # m = rnd_model.make_template(p_pos)
-        masks += list(m)
+    # next_ob = []
+    # masks = []
+    # for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+    #     acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
+    #     s, r, d, t, _ = envs.step(acs)
+    #     next_ob += list(s)
+    #     with torch.no_grad():
+    #         m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
+    #     # p_pos = torch.from_numpy(envs.get_player_position()).to(device)
+    #     # m = rnd_model.make_template(p_pos)
+    #     masks += list(m)
 
-        if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-            next_ob = np.stack(next_ob)
-            mask = np.stack(masks)
-            obs_rms.update(next_ob * mask)
-            next_ob = []
-            masks = []
-            break
+    #     if len(next_ob) % (args.num_steps * args.num_envs) == 0:
+    #         next_ob = np.stack(next_ob)
+    #         mask = np.stack(masks)
+    #         obs_rms.update(next_ob * mask)
+    #         next_ob = []
+    #         masks = []
     print("End to initialize...")
 
     for update in range(1, num_updates + 1):
@@ -701,9 +700,9 @@ if __name__ == "__main__":
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
             # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
-            # mask = template.get_mask(next_obs.to(device) / 255.)
+            mask = template.get_mask(next_obs.to(device) / 255.)
             # mask = rnd_model.make_template(next_player_pos)
-            masked_next_obs = next_obs
+            masked_next_obs = next_obs * mask
             rnd_next_obs = (
                 (
                     (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
@@ -888,21 +887,21 @@ if __name__ == "__main__":
                 if global_step > args.train_mask_at:
                     template.net.mask = True
                     
-            if global_step % args.template_train_every == 0:
-                for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
-                    mb_mask_inds = b_inds[start:end]
-                    b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
-                                                        b_next_obs[mb_mask_inds] / 255.)
-                    b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                    mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss.mean()
-                    
-                    mask_optimizer.zero_grad()
-                    mask_loss.backward()
-                    mask_optimizer.step()
-
             if args.target_kl is not None:
                 if approx_kl > args.target_kl:
                     break
+
+        if global_step % args.template_train_every == 0:
+            for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
+                mb_mask_inds = b_inds[start:end]
+                b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
+                                                    b_next_obs[mb_mask_inds] / 255.)
+                b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
+                mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss.mean()
+                
+                mask_optimizer.zero_grad()
+                mask_loss.backward()
+                mask_optimizer.step()
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
