@@ -269,7 +269,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/MultiRoomS10N6-Gridworld-v0"
+    env_id: str = "Visual/DoorKey16x16-Gridworld-v0"
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
@@ -329,15 +329,15 @@ class Args:
     # masking
     use_template: bool = False
     """use templating approach"""
-    template_size: int = 3
+    template_size: int = 6
     """masking template cell size"""
     alpha: float = 0.0
     """transparancy"""
-    train_mask_at: int = 5e4
+    train_mask_at: int = 5e5
     """start masking at step"""
-    template_batch: int = 128
+    template_batch: int = 256
     """train batches"""
-    template_train_every: int = 4
+    template_train_every: int = 1
     """train every"""
 
     # to be filled in runtime
