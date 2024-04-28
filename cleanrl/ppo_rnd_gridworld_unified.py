@@ -790,8 +790,8 @@ if __name__ == "__main__":
 
         # flatten the batch
         b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
-        b_dones = dones.reshape((-1,) + envs.single_observation_space.shape)
-        b_player_masks = player_masks.reshape((-1, 2))
+        b_dones = dones.reshape((-1,))
+        b_player_masks = player_masks.reshape((-1,)+envs.single_observation_space.shape)
         b_logprobs = logprobs.reshape(-1)
         b_actions = actions.reshape(-1)
         b_ext_advantages = ext_advantages.reshape(-1)
@@ -803,7 +803,7 @@ if __name__ == "__main__":
         b_advantages = b_int_advantages * args.int_coef + b_ext_advantages * args.ext_coef
 
         # mask = rnd_model.make_template(b_player_pos)
-        masked_b_obs = b_obs
+        masked_b_obs = b_obs.clone().detach()
         masked_b_obs *= b_player_masks
         obs_rms.update(masked_b_obs.cpu().numpy())
 
@@ -892,12 +892,18 @@ if __name__ == "__main__":
                     break
 
         if update % args.template_train_every == 0:
+            b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
+            b_dones = dones.reshape((-1,))
+
             for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
-                end = min(end, len(obs)-1)
                 mb_dones = b_dones[start:end]
-                mb_mask_inds = b_inds[start:end][mb_dones]
+                mb_mask_inds = b_inds[start:end]
+                valid_inds = ((~mb_dones.bool()) & (mb_mask_inds != (len(b_obs)-1))).bool()
+                mb_mask_inds = mb_mask_inds[valid_inds]
+
                 
-                if len(mb_mask_inds):
+                
+                if len(mb_mask_inds) == 0:
                     continue
                 b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
                                                     b_obs[mb_mask_inds + 1] / 255.)
