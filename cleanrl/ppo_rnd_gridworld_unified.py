@@ -891,7 +891,7 @@ if __name__ == "__main__":
                 mb_mask_inds = b_inds[start:end]
                 b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
                                                     b_next_obs[mb_mask_inds] / 255.)
-                b_act = F.one_hot(b_actions.long(), action_n)
+                b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
                 mask_loss = F.cross_entropy(b_act, b_act_pred) + local_loss
 
                 mask_optimizer.zero_grad()
