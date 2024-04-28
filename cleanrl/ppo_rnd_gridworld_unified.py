@@ -327,8 +327,6 @@ class Args:
     """patience for early stopping"""
 
     # masking
-    use_template: bool = False
-    """use templating approach"""
     template_size: int = 6
     """masking template cell size"""
     alpha: float = 0.0
@@ -339,6 +337,8 @@ class Args:
     """train batches"""
     template_train_every: int = 1
     """train every"""
+    template_lr: float = 5e-4
+    '''learning rate'''
 
     # to be filled in runtime
     batch_size: int = 0
@@ -617,9 +617,9 @@ if __name__ == "__main__":
         lr=args.learning_rate,
         eps=1e-5,
     )
-    mask_optimizer = optim.Adam(
+    mask_optimizer = optim.AdamW(
         template.parameters(),
-        lr=1e-4,
+        lr=args.template_lr,
     )
     mask_criterion = nn.CrossEntropyLoss()
     reward_rms = RunningMeanStd()
@@ -790,7 +790,7 @@ if __name__ == "__main__":
 
         # flatten the batch
         b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
-        b_next_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
+        b_dones = dones.reshape((-1,) + envs.single_observation_space.shape)
         b_player_masks = player_masks.reshape((-1, 2))
         b_logprobs = logprobs.reshape(-1)
         b_actions = actions.reshape(-1)
@@ -804,8 +804,7 @@ if __name__ == "__main__":
 
         # mask = rnd_model.make_template(b_player_pos)
         masked_b_obs = b_obs
-        if args.use_template:
-            masked_b_obs *= b_player_masks
+        masked_b_obs *= b_player_masks
         obs_rms.update(masked_b_obs.cpu().numpy())
 
         # Optimizing the policy and value network
@@ -894,9 +893,14 @@ if __name__ == "__main__":
 
         if update % args.template_train_every == 0:
             for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
-                mb_mask_inds = b_inds[start:end]
+                end = min(end, len(obs)-1)
+                if start == end:
+                    break
+                mb_dones = b_dones[start:end]
+                mb_mask_inds = b_inds[start:end][mb_dones]
+                
                 b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
-                                                    b_next_obs[mb_mask_inds] / 255.)
+                                                    b_obs[mb_mask_inds + 1] / 255.)
                 local_loss = local_loss.mean()
                 b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
                 action_loss = mask_criterion(b_act, b_act_pred)

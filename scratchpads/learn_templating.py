@@ -305,7 +305,7 @@ def train(train_loader, name):
     # net = ImageActionPredictor()
     # net.template.set_mixin_factor(0.0)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(net.parameters(), lr=0.0001)
+    optimizer = torch.optim.AdamW(net.parameters(), lr=0.0005)
     mask = False
     epochs = 50
     mask_at_epoch = 15
