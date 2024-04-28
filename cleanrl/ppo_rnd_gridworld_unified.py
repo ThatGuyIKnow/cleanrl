@@ -602,6 +602,7 @@ if __name__ == "__main__":
     action_n = envs.single_action_space.n
     agent = Agent(envs).to(device)
     template = TemplateMasking(obs_shape, action_n)
+    template.to(device)
     template.net.mask = False
     rnd_model = RNDModel(4, envs.single_action_space.n).to(device)
     combined_parameters = list(agent.parameters()) + list(rnd_model.predictor.parameters())
