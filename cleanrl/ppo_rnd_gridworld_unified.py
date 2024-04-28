@@ -889,13 +889,13 @@ if __name__ == "__main__":
                 if global_step > args.train_mask_at:
                     template.net.mask = True
                     
-            if global_step % args.template_train_every == 0:
+            if global_step % args.template_train_every == 0 and False:
                 for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                     mb_mask_inds = b_inds[start:end]
                     b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
                                                         b_next_obs[mb_mask_inds] / 255.)
                     b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                    mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss
+                    mask_loss = F.cross_entropy(b_act, b_act_pred).mean() + local_loss.mean()
                     
                     mask_optimizer.zero_grad()
                     mask_loss.backward()
