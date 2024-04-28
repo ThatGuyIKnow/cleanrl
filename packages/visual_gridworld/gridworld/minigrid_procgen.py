@@ -1,5 +1,6 @@
 
 import abc
+import math
 import sys
 from typing import Dict, List, Literal
 import gymnasium
@@ -256,8 +257,11 @@ class DoorKeyGridworld(GridWorldGeneration):
         key_x = self.random.choice(wall_poss - 1) + 1
         key_y = self.random.choice(h - 3) + 2
         grid[key_x,key_y] = CellType.KEY.value
+        room_conf = np.zeros([2, 3, 2], dtype=np.int32)
+        room_conf[0] = np.array([[0, wall_poss+1],[0, h],[w, h]])
+        room_conf[1] = np.array([[wall_poss, 0],[0, h],[w, h]])
 
-        return grid, player_pos, player_direction, room_map
+        return grid, player_pos, player_direction, room_map, room_conf
 
 
 class MultiRoomGridworld(GridWorldGeneration):
@@ -271,24 +275,26 @@ class MultiRoomGridworld(GridWorldGeneration):
 
         self.grid = None
         if self.fixed:
-            self.grid, self.player_pos, self.player_direction, self.door_list = self.generate_grid_world()
+            self.grid, self.player_pos, self.player_direction, self.door_list, self.room_confs = self.generate_grid_world()
 
     def generate_grid_world(self):
         if self.fixed:
             self.random = np.random.RandomState(self.seed)
 
-        if self.grid is not None:
+        if self.grid is not None and self.fixed:
             return (self.grid.copy(),
                     self.player_pos.copy(),
                     Direction(self.player_direction.value),
-                    self.door_list.copy())
+                    self.door_list.copy(),
+                    self.room_confs.copy())
         width = self.width
         height = self.height
         room_count = self.room_count
         max_room_size = self.max_room_size
         grid = -np.ones([width, height])
-        room_map = np.zeros_like(grid)
+        room_map = np.zeros_like(grid)-1
         room_list, door_list = self.get_room_map(width, height, room_count, max_room_size, 8)
+        room_conf = np.zeros([self.room_count, 3, 2], dtype=np.int32)
         # room_list = [[(10, 0), (5, 4)],]
         for i, ((x, y), (w, h)) in enumerate(room_list):
             right = x + w
@@ -296,6 +302,7 @@ class MultiRoomGridworld(GridWorldGeneration):
             grid[x:right,y:bottom] = CellType.WALL.value
             grid[x+1:right-1,y+1:bottom-1] = CellType.FLOOR.value
             room_map[x+1:right-1,y+1:bottom-1] = i
+            room_conf[i] = np.array([[x, right],[y, bottom],[self.max_room_size,self.max_room_size]])
         for x, y in door_list:
             grid[x,y] = CellType.DOOR.value
 
@@ -305,7 +312,7 @@ class MultiRoomGridworld(GridWorldGeneration):
 
         player_direction = Direction.turn_left(Direction.UP, self.random.choice(4))
 
-        return grid, player_pos, player_direction, room_map
+        return grid, player_pos, player_direction, room_map, room_conf
 
 
     def get_room_map(self, width, height, room_count, max_room_size, max_tries):
@@ -376,10 +383,22 @@ class Gridworld(gymnasium.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
     def __init__(self, width, height, door_count, cell_size = 30, num_envs=1, render_mode: Literal['human', 'rgb_array'] = 'human',
-                 grid_generation: GridWorldGeneration=None, tile_generation: GridWorldTiles = None, seed=None, max_time_steps=np.inf):
+                 grid_generation: GridWorldGeneration=None, tile_generation: GridWorldTiles = None, seed=None, max_time_steps=np.inf, 
+                 camera_mode: Literal['full', 'agent_centric', 'room_centric'] = 'full', camera_kwargs: dict = {}, show_key_icon: bool = True):
         self.width = width
         self.height = height
         self.num_envs = num_envs
+
+        self.divide_rooms = False
+        self.agent_centric = False
+        # camera_mode = 'agent_centric'
+        self.show_key_icon = show_key_icon
+
+        if camera_mode == 'room_centric':
+            self.divide_rooms = True
+        elif camera_mode == 'agent_centric':
+            self.agent_centric = True
+            self.agent_view = np.array(camera_kwargs['agent_view']) if 'agent_view' in camera_kwargs else np.array([2, 2])
 
         # Observations are dictionaries with the agent's and the target's location.
         # Each location is encoded as an element of {0, ..., `size`}^2, i.e. MultiDiscrete([size, size]).
@@ -427,15 +446,17 @@ class Gridworld(gymnasium.Env):
             self.render = self.rgb_render
 
         self.rgb_obs = np.zeros((num_envs, *self.screen_size, 3), dtype=np.uint8)
+        self.floor_mask = np.zeros((num_envs, *self.screen_size), dtype=np.uint8)
         self.grids = np.zeros((num_envs, width, height), dtype=np.int8)
         self.room_maps = np.zeros_like(self.grids)
+        self.room_confs = None
         self.player_positions = np.zeros((num_envs, 2), dtype=np.int32)
         self.last_player_positions = np.zeros((num_envs, 2), dtype=np.int32)
         self.player_directions = np.zeros((num_envs,), dtype=np.uint8)
 
         self.step_counts = np.zeros((num_envs, ), dtype=np.uint16)
         self.visited_rooms = np.zeros((num_envs, ), dtype=np.uint16)
-        self.current_rooms = np.zeros((num_envs, ), dtype=np.uint8)
+        self.current_room = np.zeros((num_envs, ), dtype=np.uint8)
 
         self.dones = np.full((num_envs, ), fill_value=False)
         self.next_dones = np.full((num_envs, ), fill_value=False)
@@ -477,7 +498,7 @@ class Gridworld(gymnasium.Env):
         reward = self.get_reward(self.step_counts, self.max_time_step) * dones
         self.info['step_count'] = self.step_counts.copy()
         self.info['episodic_return'] += reward 
-        self.info['current_room'] = self.current_rooms
+        self.info['current_room'] = self.current_room
         self.info['rooms_visited'] = self.visited_rooms.copy()
 
         info = self.get_info()
@@ -510,24 +531,28 @@ class Gridworld(gymnasium.Env):
         for i in range(self.num_envs):
             self.reset_env(i)
 
-        return self.rgb_obs, self.info
+        return self.rgb_render(), self.info
 
 
     def reset_env(self, index: int, seed = None, options = None):
         self.dones[index] = False
-        grid, player_position, player_direction, room_map = \
+        grid, player_position, player_direction, room_map, room_confs = \
             self.generation.generate_grid_world()
 
         self.grids[index,...] = grid
         self.room_maps[index] = room_map
+        if self.room_confs is None:
+            self.room_confs = np.zeros([self.num_envs, self.room_maps.max()+1, 3, 2], dtype=np.int32)
+
+        self.room_confs[index] = room_confs
 
         self.player_positions[index] = player_position
         self.player_directions[index] = player_direction.value
-        self.rgb_obs[index] = self.construct_rgb_obs(index)
+        self.rgb_obs[index], self.floor_mask[index] = self.construct_rgb_obs(index)
         self.last_player_positions[index] = player_position
         self.has_key[index] = False
         self.visited_rooms[index] = 0
-        self.current_rooms[index] = 0
+        self.current_room[index] = 0
 
         self.info['rooms_visited'][index] = 1
         self.info['step_count'][index] = 0
@@ -562,8 +587,8 @@ class Gridworld(gymnasium.Env):
         return True
 
 
-    def get_room(self, env_index, position):
-        return self.room_maps[env_index, position[0], position[1]] + 1
+    def get_current_room(self, env_index, position):
+        return self.room_maps[env_index, position[0], position[1]]
 
     def l1_norm(self, pos1, pos2):
         if len(pos1.shape) == 3:
@@ -582,15 +607,17 @@ class Gridworld(gymnasium.Env):
             x *= self.cell_size
             y *= self.cell_size
             self.rgb_obs[env_index, x:x+self.cell_size,y:y+self.cell_size] = self.cell_render[CellType(symbol)]
+            self.floor_mask[env_index, x:x+self.cell_size,y:y+self.cell_size] = 0
 
     def move_player(self, env_index):
         move = Direction.to_vectors()[self.player_directions[env_index]]
         x, y = self.player_positions[env_index]
         new_position = (x + move[0], y + move[1])
         if self.can_move(env_index, new_position):
-            self.current_room = self.get_room(env_index, new_position)
+            cr =  self.get_current_room(env_index, new_position).copy()
+            self.current_room[env_index] = cr if cr != -1 else self.current_room[env_index]
             # print(f'Curent room: {self.current_room}')
-            self.visited_rooms[env_index] = max(self.visited_rooms[env_index], self.current_room)
+            self.visited_rooms[env_index] = max(self.visited_rooms[env_index], self.current_room[env_index])
             self.player_positions[env_index] = new_position
         if self.reached_goal(env_index, new_position):
             self.dones[env_index]=True
@@ -631,9 +658,100 @@ class Gridworld(gymnasium.Env):
     ### RENDERING
     ################################################################################################
 
-    def rgb_render(self):
-        rgb_obs = self.rgb_obs.copy()
+    def get_room(self, obs, mask=False):
+        mw, mh = (self.generation.max_room_size * self.cell_size, ) * 2
+        divided_rgb_obs = np.zeros([self.num_envs, mw, mh, obs.shape[-1]], dtype=np.uint8)
+        for i in range(len(obs)):
+            curr_room = self.current_room[i].copy()
+            x, y = self.player_positions[i].copy()
+            room_conf = self.room_confs[i][curr_room].copy()
+            xc, yc = room_conf[0], room_conf[1]
+            direction = self.player_directions[i]
+            x -= xc[0]
+            y -= yc[0]
+            x *= self.cell_size
+            y *= self.cell_size
+            xc *= self.cell_size
+            yc *= self.cell_size
+            player_mask, player_sprite = self.cell_render[CellType.PLAYER][direction]
+
+            room_rgb = obs[i, xc[0]:xc[1], yc[0]:yc[1]].copy()
+            if mask:
+                room_rgb[x:x+self.cell_size,y:y+self.cell_size] *= player_mask[...,0]
+            else:
+                room_rgb[x:x+self.cell_size,y:y+self.cell_size] *= player_mask
+                room_rgb[x:x+self.cell_size,y:y+self.cell_size] += player_sprite
+                if self.show_key_icon and self.has_key[i]:
+                    room_rgb[i, 0:5,0:5] = np.array([255, 255, 0])
+
+            rw, rh = room_rgb.shape[-3:-1]
+            offset_x, offset_y = (mw-rw)//2, (mh-rh)//2,
+
+            divided_rgb_obs[i, offset_x:offset_x+rw, offset_y:offset_y+rh] = room_rgb
+
+        return divided_rgb_obs
+
+    def get_centric(self, obs, mask=False):
+
+        # rgb_obs = self.rgb_obs.copy()
+        centric_rgb = np.zeros([self.num_envs, *((2*self.agent_view+1)*self.cell_size), obs.shape[-1]], dtype=np.uint8)
+        ox, oy = self.agent_view
+        for i in range(len(obs)):
+            x, y = self.player_positions[i]
+            direction = self.player_directions[i]
+            bx = np.array([x - ox, x + ox + 1]) * self.cell_size
+            by = np.array([y - oy, y + oy + 1]) * self.cell_size
+            player_mask, player_sprite = self.cell_render[CellType.PLAYER][direction]
+
+            # Create padding in case of out of bounds
+            xpb, xpa = -min(0, bx[0]), max(obs.shape[1], bx[1]) - obs.shape[1]
+            ypb, ypa = -min(0, by[0]), max(obs.shape[2], by[1]) - obs.shape[2]
+            o = np.pad( obs[i], ((xpb, xpa), (ypb, ypa), (0, 0)), constant_values=0)
+
+            # Move pixel according to padding of OOB
+            bx += xpb - xpa
+            by += ypb - ypa
+
+            centric_rgb[i] = o[bx[0]:bx[1], by[0]:by[1]].copy()
+            if mask:
+                centric_rgb[i, ox*self.cell_size:(ox+1)*self.cell_size, oy*self.cell_size:(oy+1)*self.cell_size] *= player_mask[...,0]
+            else:
+                centric_rgb[i, ox*self.cell_size:(ox+1)*self.cell_size, oy*self.cell_size:(oy+1)*self.cell_size] *= player_mask
+                centric_rgb[i, ox*self.cell_size:(ox+1)*self.cell_size, oy*self.cell_size:(oy+1)*self.cell_size] += player_sprite
+                if self.show_key_icon and self.has_key[i]:
+                    centric_rgb[i, 0:5,0:5] = np.array([255, 255, 0])
+        return centric_rgb
+
+    def get_floor_mask(self):
         # return rgb_obs
+        if self.divide_rooms:
+            return self.get_room(self.floor_mask, mask=True)
+
+        if self.agent_centric:
+            return self.get_centric(self.floor_mask, mask=True)
+
+        floor_mask = self.floor_mask.copy()
+        for i in range(len(floor_mask)):
+            x, y = self.player_positions[i]
+            direction = self.player_directions[i]
+            x *= self.cell_size
+            y *= self.cell_size
+            player_mask, _ = self.cell_render[CellType.PLAYER][direction]
+            floor_mask[i, x:x+self.cell_size,y:y+self.cell_size] *= player_mask[...,0]
+        
+        return floor_mask[...,None]
+        
+
+
+    def rgb_render(self):
+        # return rgb_obs
+        if self.divide_rooms:
+            return self.get_room(self.rgb_obs)
+
+        if self.agent_centric:
+            return self.get_centric(self.rgb_obs)
+
+        rgb_obs = self.rgb_obs.copy()
         for i in range(len(rgb_obs)):
             x, y = self.player_positions[i]
             direction = self.player_directions[i]
@@ -642,6 +760,9 @@ class Gridworld(gymnasium.Env):
             player_mask, player_sprite = self.cell_render[CellType.PLAYER][direction]
             rgb_obs[i, x:x+self.cell_size,y:y+self.cell_size] *= player_mask
             rgb_obs[i, x:x+self.cell_size,y:y+self.cell_size] += player_sprite
+
+            if self.show_key_icon and self.has_key[i]:
+                rgb_obs[i, 0:5,0:5] = np.array([255, 255, 0])
         return rgb_obs
 
     def human_render(self):
@@ -659,7 +780,9 @@ class Gridworld(gymnasium.Env):
         pygame.display.update()
 
     def construct_rgb_obs(self, env_index):
+        floor_arr = []
         arr = []
+
         for i in range(self.width * self.height):
             x, y = i % self.width, i // self.height
             type = self.grids[env_index, x, y]
@@ -667,9 +790,19 @@ class Gridworld(gymnasium.Env):
                 arr.append(np.zeros((self.cell_size, self.cell_size, 3), dtype=np.uint8))
             else:
                 arr.append(self.cell_render[CellType(type)])
+
+            if type == CellType.FLOOR:
+                floor_arr.append(np.ones((self.cell_size, self.cell_size), dtype=np.uint8))
+            else:
+                floor_arr.append(np.zeros((self.cell_size, self.cell_size), dtype=np.uint8))
+                
         arr = np.concatenate(arr, axis=0)
         arr = np.concatenate(np.split(arr, self.height), axis=1)
-        return arr
+
+        floor_arr = np.concatenate(floor_arr, axis=0)
+        floor_arr = np.concatenate(np.split(floor_arr, self.height), axis=1)
+
+        return arr, floor_arr
 
 
     ################################################################################################
@@ -798,7 +931,7 @@ class MultiRoomS10N6GridWorld(Gridworld):
     _max_episode_steps= room_count * 20
 
     def __init__(self, cell_size = 30, num_envs=1, fixed = False, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
-        width = height = int(self.room_count * self.max_room_size / 2)
+        width = height = int(self.room_count * self.max_room_size)
         grid_gen = MultiRoomGridworld(seed, fixed, width=width, height=height, room_count=self.room_count, max_room_size=self.max_room_size)
         random_tile = RandomLuminationTiles(cell_size, seed)
         super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps)
@@ -812,9 +945,11 @@ class MultiRoomS10N6GridWorld(Gridworld):
 
 
 class NoisyGridworldWrapper(gymnasium.ObservationWrapper):
-    def __init__(self, env: Gridworld):
+    def __init__(self, env: Gridworld, alpha = 1.0):
         super().__init__(env)
         self.env = env
+        self.cutoff = 255 - int(255 * alpha)
+        self.alpha = alpha
         
     def observation(self, observation):
         """Returns a modified observation.
@@ -825,23 +960,28 @@ class NoisyGridworldWrapper(gymnasium.ObservationWrapper):
         Returns:
             The modified observation
         """
-        c = self.env.cell_size
-        grid = self.env.grids
-        noise = np.random.randint(0, 255, self.env.observation_space.shape, dtype=np.uint8)
-        floor_index = np.where(grid == CellType.FLOOR.value)
-        floor_mask = np.zeros_like(grid, dtype=np.uint8)
+        noise = np.random.randint(0, 255, observation.shape, dtype=np.uint8)
+        noise = ((np.clip(noise, self.cutoff, 255) - self.cutoff) / self.alpha).astype(np.uint8)
+        floor_index = np.where((observation[...,0] > 10)
+                               & (observation[...,0] == observation[...,1]) 
+                               & (observation[...,0] == observation[...,2]))
+        floor_mask = np.zeros_like(observation, dtype=np.uint8)
         floor_mask[floor_index] = 1
-        floor_mask = floor_mask.repeat(c, axis=-2).repeat(c, axis=-1)[...,None]
+        # floor_mask = self.env.get_floor_mask()
+        # floor_mask = floor_mask.repeat(c, axis=-2).repeat(c, axis=-1)[...,None]
 
-        x_full, y_full = np.rollaxis(self.env.player_positions * c, axis=1)
-        player = self.env.cell_render[CellType.PLAYER][self.env.player_directions]
-        player_mask, _ = np.rollaxis(player, axis=1)
-        for i, (x, y, mask) in enumerate(zip(x_full, y_full, player_mask)):
-            floor_mask[i, x:x+c, y:y+c] *= mask[...,:1]
+        # x_full, y_full = np.rollaxis(self.env.player_positions * c, axis=1)
+        # player = self.env.cell_render[CellType.PLAYER][self.env.player_directions]
+        # player_mask, _ = np.rollaxis(player, axis=1)
+        # for i, (x, y, mask) in enumerate(zip(x_full, y_full, player_mask)):
+        #     floor_mask[i, x:x+c, y:y+c] *= mask[...,:1]
 
         observation = observation * (1-floor_mask) + floor_mask * noise
         return observation
     
+    def rgb_render(self):
+        return self.observation(self.env.rgb_render())
+
     def render(self):
         self.env.screen.fill((255, 255, 255))  # Fill the screen with white
         # draw the array onto the surface
@@ -907,6 +1047,7 @@ class NoisyDoorKey6x6Gridworld(gymnasium.Env):
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
         self.get_player_position = env.get_player_position
+        self.rgb_render = self.env.rgb_render
         self.get_grid = env.get_grid
 
 class NoisyDoorKey8x8Gridworld(gymnasium.Env):
@@ -931,6 +1072,7 @@ class NoisyDoorKey8x8Gridworld(gymnasium.Env):
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
         self.get_player_position = env.get_player_position
+        self.rgb_render = self.env.rgb_render
         self.get_grid = self.env.get_grid
 
 
@@ -958,6 +1100,7 @@ class NoisyDoorKey16x16Gridworld(gymnasium.Env):
         self.single_action_space = self.env.single_action_space
         self.get_player_position = self.env.get_player_position
         self.get_grid = self.env.get_grid
+        self.rgb_render = self.env.rgb_render
 
 
 
@@ -985,8 +1128,9 @@ class NoisyMultiRoomS4N2GridWorld(gymnasium.Env):
         self.action_space =self.env.action_space
         self.single_observation_space = self.env.single_observation_space
         self.single_action_space = self.env.single_action_space
-        self.get_player_position = env.get_player_position
+        self.get_player_position = self.env.get_player_position
         self.get_grid = self.env.get_grid
+        self.rgb_render = self.env.rgb_render
 
 
 
@@ -1012,6 +1156,7 @@ class NoisyMultiRoomS5N4GridWorld(gymnasium.Env):
         self.single_action_space = self.env.single_action_space
         self.get_player_position = self.env.get_player_position
         self.get_grid = self.env.get_grid
+        self.rgb_render = self.env.rgb_render
 
 
 
@@ -1037,6 +1182,109 @@ class NoisyMultiRoomS10N6GridWorld(gymnasium.Env):
         self.single_action_space = self.env.single_action_space
         self.get_player_position = self.env.get_player_position
         self.get_grid = self.env.get_grid
+        self.rgb_render = self.env.rgb_render
+
+
+# ############################################################
+# ############################################################
+# ################### Non-random Noise ######################
+# ############################################################
+# ############################################################
+
+import colorsys as c
+
+class BlockyBackgroundGridworldWrapper(gymnasium.ObservationWrapper):
+    def __init__(self, env: Gridworld, colors=12, speed=2, width = 15):
+        super().__init__(env)
+        self.env = env
+        self.colors = self.get_colors(colors)
+        self.background = None
+        self.screen_width = None
+        self.width = width
+        self.speed = speed
+        self.scroll = 0
+
+    def get_colors(self, colors):
+        rgb_colors = [c.hsv_to_rgb(i/float(colors), 1., 1.) for i in range(colors)]
+        return np.array(rgb_colors, dtype=np.uint8) * 255
+
+
+    def construct_background(self, colors, width, screen_width):
+        # Construct colors
+        bg = colors[:, None].repeat(width, axis=0)
+        # Repeat in case of too small
+        repeats = math.ceil(screen_width/bg.shape[0])
+        bg = np.concatenate([bg,]*repeats, axis=0)
+
+        # Add screen width to end to avoid annoying wrapping indexing
+        return np.concatenate([bg, bg[:screen_width]], axis=0)
+
+    def observation(self, observation):
+        """Returns a modified observation.
+
+        Args:
+            observation: The :attr:`env` observation
+
+        Returns:
+            The modified observation
+        """
+        if self.background is None:
+            self.screen_width = observation.shape[1]
+            self.background = self.construct_background(self.colors, self.width, self.screen_width)
+
+        floor_index = np.where((observation[...,0] > 10)
+                                & (observation[...,0] == observation[...,1]) 
+                                & (observation[...,0] == observation[...,2]))
+        floor_mask = np.zeros_like(observation, dtype=np.uint8)
+        floor_mask[floor_index] = 1
+        scroll = (self.env.step_counts * self.speed) % (self.background.shape[0] - self.screen_width)
+        for i in range(len(observation)):
+            bg = self.background[scroll[i]:scroll[i]+self.screen_width]            
+            observation[i] = observation[i] * (1-floor_mask[i]) + floor_mask[i] * bg
+        return observation
+    
+    def rgb_render(self):
+        return self.observation(self.env.rgb_render())
+
+    def render(self):
+        self.env.screen.fill((255, 255, 255))  # Fill the screen with white
+        # draw the array onto the surface
+        w,h = self.env.screen_size
+        obs = self.observation(self.env.rgb_render())
+        screen = np.zeros((w * 4, h * 4, 3), dtype=np.uint8)
+        for index, o in enumerate(obs):
+            i = (index % 4)*w
+            j = index // 4*h
+            screen[i:i+w,j:j+h] = o
+        surf = pygame.surfarray.make_surface(screen)
+        self.env.screen.blit(surf, (0, 0))
+        pygame.display.update()
+
+
+class BlockyMultiRoomS10N6GridWorld(gymnasium.Env):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    env_name = "BlockyMultiRoomS10N6-Gridworld-v0"
+    room_count = 6
+    max_room_size = 10
+    _max_episode_steps= room_count * 20
+
+    def __init__(self, cell_size = 30, num_envs=1, fixed=False, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None):
+        super().__init__()
+        self.env = BlockyBackgroundGridworldWrapper(MultiRoomS10N6GridWorld(cell_size, num_envs, fixed, render_mode, seed))
+
+        self.step = self.env.step
+        self.reset = self.env.reset
+        self.render = self.env.render
+        self.observation = self.env.observation
+        self.metadata = self.env.metadata
+        self.observation_space = self.env.observation_space
+        self.action_space =self.env.action_space
+        self.single_observation_space = self.env.single_observation_space
+        self.single_action_space = self.env.single_action_space
+        self.get_player_position = self.env.get_player_position
+        self.get_grid = self.env.get_grid
+        self.rgb_render = self.env.rgb_render
+        self.screen = self.env.screen
 
 
 
@@ -1126,7 +1374,7 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
 
     def render(self):
         if self.env.render_mode == 'rgb_array':
-            return self.env.render()
+            return self.env.rgb_render()
         self.env.screen.fill((255, 255, 255))  # Fill the screen with white
         # draw the array onto the surface
         w,h = self.shape

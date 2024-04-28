@@ -1,57 +1,28 @@
-# %%
+
 import os
-import sys
-from typing import Tuple
+from typing import List, Optional, Tuple, Union
 import gymnasium as gym
-# import gym
-
-import torch
-import torch.nn as nn
-
-
-import torch
-from torch.utils.data import DataLoader
-
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torch import Tensor
+from torch.jit import script
+import numpy as np
+from visual_gridworld.gridworld.minigrid_procgen import DoorKey16x16Gridworld, DoorKey8x8Gridworld, GridworldResizeObservation, MultiRoomS10N6GridWorld, MultiRoomS4N2GridWorld, MultiRoomS5N4GridWorld, NoisyDoorKey16x16Gridworld, NoisyDoorKey8x8Gridworld, NoisyMultiRoomS10N6GridWorld, NoisyMultiRoomS4N2GridWorld, NoisyMultiRoomS5N4GridWorld # absolute import
+from EpisodeDataset import GridworldEpisodeDataset
+from tqdm import tqdm
+from torchmetrics.functional.classification import multiclass_accuracy
+from template import preprocess
 
 if torch.cuda.is_available():
   device = torch.device("cuda")
 else:
   device = torch.device("cpu")
   import matplotlib.pyplot as plt
-import torch
-import numpy as np
-
-from typing import List
-
-from visual_gridworld.gridworld.minigrid_procgen import DoorKey16x16Gridworld, DoorKey5x5Gridworld, DoorKey6x6Gridworld, DoorKey8x8Gridworld, GridworldResizeObservation, MultiRoomS10N6GridWorld, MultiRoomS4N2GridWorld, MultiRoomS5N4GridWorld, NoisyDoorKey16x16Gridworld, NoisyDoorKey5x5Gridworld, NoisyDoorKey6x6Gridworld, NoisyDoorKey8x8Gridworld, NoisyMultiRoomS10N6GridWorld, NoisyMultiRoomS4N2GridWorld, NoisyMultiRoomS5N4GridWorld # absolute import
 
 
-# %%
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.jit import script
-from torch import Tensor
-from typing import List, Optional, Tuple, Union
 
-# %%
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from EpisodeDataset import GridworldEpisodeDataset
-# %%
-from tqdm import tqdm
-from torchmetrics.functional.classification import multiclass_accuracy
-
-from template import ActionPredictor, evaluate, preprocess
 
 class BaseNetwork(nn.Module):
     def __init__(self):
@@ -237,6 +208,9 @@ class SiameseAttentionNetwork(nn.Module):
         # Apply spatial attention
         out1 = out1 * att1
         out2 = out2 * att2
+
+        out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
+        out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
         
         # Merge features
         merged_features = torch.cat((out1, out2), dim=1)
@@ -249,6 +223,14 @@ class SiameseAttentionNetwork(nn.Module):
         return out, att1, att2
 
 
+    def get_mask(self, x):
+        # Forward pass through base network
+        out1 = self.base_network(x)
+        
+        out1, obs_mask = self.template.get_masked_output(out1)
+
+        return out1, obs_mask
+        
 
 
 class LimitActions(gym.ActionWrapper):
@@ -408,6 +390,6 @@ envs = [
     NoisyDoorKey16x16Gridworld,]
 for env in envs:
     env_fn = lambda: LimitActions(GridworldResizeObservation(gym.make(f"Visual/{env.env_name}"), (84, 84)), [0, 1, 2, 3])
-    train_data = GridworldEpisodeDataset(env_fn, max_steps=200, episodes_per_epoch=100, skip_first=0, repeat_action=1, device=device)
+    train_data = GridworldEpisodeDataset(env_fn, max_steps=200, episodes_per_epoch=50, skip_first=0, repeat_action=1, device=device)
     train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
     train(train_loader, env.env_name)

@@ -17,6 +17,7 @@ from visual_gridworld.gridworld.minigrid_procgen import (DoorKey5x5Gridworld,
                                                          NoisyMultiRoomS10N6GridWorld, 
                                                          NoisyMultiRoomS4N2GridWorld, 
                                                          NoisyMultiRoomS5N4GridWorld,
+                                                         BlockyMultiRoomS10N6GridWorld
                                                          )
 
 envs = [
@@ -38,6 +39,8 @@ envs = [
     NoisyDoorKey6x6Gridworld,
     NoisyDoorKey8x8Gridworld,
     NoisyDoorKey16x16Gridworld,
+    # Blocky Background Multiroom
+    BlockyMultiRoomS10N6GridWorld
     ]
 
 for env_cls in envs:
