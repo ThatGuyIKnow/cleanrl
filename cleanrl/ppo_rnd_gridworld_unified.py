@@ -233,9 +233,10 @@ class SiameseAttentionNetwork(nn.Module):
 
     def get_mask(self, x):
         # Forward pass through base network
-        out1 = self.base_network(x)
-        
-        out1, obs_mask = self.template.get_masked_output(out1)
+        with torch.no_grad():
+            out1 = self.base_network(x)
+            
+            out1, obs_mask = self.template.get_masked_output(out1)
 
         return out1, obs_mask
         
