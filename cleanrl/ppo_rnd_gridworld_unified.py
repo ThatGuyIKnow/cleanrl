@@ -179,7 +179,7 @@ class SiameseAttentionNetwork(nn.Module):
         self.attention_fc = nn.Sequential(
             nn.LazyLinear(attention_hidden_size),
             nn.ReLU(),
-            nn.Linear(attention_hidden_size, 1)
+            nn.Linear(attention_hidden_size, attention_hidden_size)
         )
 
 
@@ -209,17 +209,18 @@ class SiameseAttentionNetwork(nn.Module):
             out1, obs_mask, local_loss1 = self.template(out1, train=True)
             out2, obs_mask, local_loss2 = self.template(out2, train=True)
 
-        out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
-        out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
-        
         # Compute attention weights
         att1 = self.attention_fc(out1)
         att2 = self.attention_fc(out2)
         att1 = F.softmax(att1, dim=1)
         att2 = F.softmax(att2, dim=1)
 
-        out1 = out1 * att1
-        out2 = out2 * att2
+        out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
+        out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
+        
+
+        out1 = out1 * att1.view(*att1.shape, 1, 1)
+        out2 = out2 * att2.view(*att2.shape, 1, 1)
 
         # Merge features
         merged_features = torch.cat((out1, out2), dim=1)
@@ -237,6 +238,15 @@ class SiameseAttentionNetwork(nn.Module):
             out1 = self.base_network(x)
             
             out1, obs_mask = self.template.get_masked_output(out1)
+
+            att1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
+            att1 = self.attention_fc(att1)
+            att1 = F.softmax(att1, dim=1)
+
+            out1 *= att1.view(*att1.shape, 1, 1)
+            obs_mask *= att1.view(*att1.shape, 1, 1)
+
+
 
         return out1, obs_mask
         
@@ -651,22 +661,22 @@ if __name__ == "__main__":
     num_updates = args.total_timesteps // args.batch_size
 
     print("Start to initialize observation normalization parameter.....")
-    # next_ob = []
-    # masks = []
-    # for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-    #     acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
-    #     s, r, d, t, _ = envs.step(acs)
-    #     next_ob += list(s)
-    #     with torch.no_grad():
-    #         m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
-    #     masks += list(m)
+    next_ob = []
+    masks = []
+    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+        acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
+        s, r, d, t, _ = envs.step(acs)
+        next_ob += list(s)
+        with torch.no_grad():
+            m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
+        masks += list(m)
 
-    #     if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-    #         next_ob = np.stack(next_ob)
-    #         mask = np.stack(masks)
-    #         obs_rms.update(next_ob * mask)
-    #         next_ob = []
-    #         masks = []
+        if len(next_ob) % (args.num_steps * args.num_envs) == 0:
+            next_ob = np.stack(next_ob)
+            mask = np.stack(masks)
+            obs_rms.update(next_ob * mask)
+            next_ob = []
+            masks = []
     print("End to initialize...")
     start_time = time.time()
 
