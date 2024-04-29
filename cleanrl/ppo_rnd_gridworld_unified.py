@@ -219,8 +219,8 @@ class SiameseAttentionNetwork(nn.Module):
         out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
         
 
-        out1 = out1 * att1.view(*att1.shape, 1, 1)
-        out2 = out2 * att2.view(*att2.shape, 1, 1)
+        out1 = out1 * att1.squeeze(2)
+        out2 = out2 * att2.squeeze(2)
 
         # Merge features
         merged_features = torch.cat((out1, out2), dim=1)
