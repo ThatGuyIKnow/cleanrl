@@ -339,7 +339,7 @@ class Args:
     """train every"""
     template_lr: float = 5e-4
     '''learning rate'''
-    template_epochs: int = 4
+    template_epochs: int = 1
     """template epochs"""
 
     # to be filled in runtime
