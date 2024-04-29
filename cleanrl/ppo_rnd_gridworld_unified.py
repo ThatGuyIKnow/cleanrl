@@ -138,7 +138,7 @@ class Template(nn.Module):
 
     def get_masked_output(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         # For each element in the batch, find the max pool index to select the corresponding template
-        _, indices = F.max_pool2d(x, self.out_size, return_indices=True)
+        _, indices = F.max_pool2d(x.sum(dim=1), self.out_size, return_indices=True)
         indices = indices.view(x.shape[:2]).long()
         
         # Interpolate between the identity mask and the filtered templates based on mixin_factor
@@ -330,7 +330,7 @@ class Args:
     """masking template cell size"""
     alpha: float = 0.0
     """transparancy"""
-    train_mask_at: int = 5e5
+    train_mask_at: int = 1
     """start masking at step"""
     template_batch: int = 64
     """train batches"""
