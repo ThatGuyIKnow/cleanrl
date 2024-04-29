@@ -923,7 +923,7 @@ if __name__ == "__main__":
                     local_loss = local_loss.mean()
                     b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
                     action_loss = mask_criterion(b_act_pred, b_act)
-                    total_loss = action_loss + local_loss
+                    total_loss = action_loss # + local_loss
                     
                     running_accuracy += [multiclass_accuracy(b_act_pred.argmax(dim=-1), b_act.argmax(dim=-1), num_classes=int(action_n)).cpu(),]
                     running_action_loss += [action_loss.item(), ]
