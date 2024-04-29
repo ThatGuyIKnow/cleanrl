@@ -964,7 +964,7 @@ if __name__ == "__main__":
                 _, raw_m, att = template.net.get_mask(b_obs_subset / 255.)
                 m = (raw_m * att[...,None]).sum(1, keepdim=True)
                 m = F.interpolate(m, obs_shape[-2:])
-                raw_m = raw_m.mean(dim=1).tile((1, 3, 1, 1))
+                raw_m = raw_m.mean(dim=1, keepdim=True).tile((1, 3, 1, 1))
 
                 masked = b_obs_subset*m
                 mask = m.tile((1, 3, 1, 1))
