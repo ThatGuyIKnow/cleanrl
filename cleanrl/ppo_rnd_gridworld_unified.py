@@ -195,14 +195,6 @@ class SiameseAttentionNetwork(nn.Module):
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, num_classes)
         
-    def multisoftmax(self, x, num_labels=3):
-        raw_x = x
-        att = torch.zeros_like(x).to(device)
-        for _ in range(num_labels):
-            a = F.softmax(raw_x, dim=1)
-            att += a
-            raw_x *= (1. - a)
-        return att / 3.
 
     def forward(self, x1, x2):
         # Forward pass through base network
