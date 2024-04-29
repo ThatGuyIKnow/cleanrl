@@ -922,7 +922,7 @@ if __name__ == "__main__":
             writer.add_scalar("losses/total_action_loss", total_loss.item(), global_step)
             writer.add_scalar("losses/action_accuracy", np.array(running_accuracy).mean(), global_step)
 
-            b_obs_subset = b_obs[:16]
+            b_obs_subset = b_obs[b_inds[:16]]
             if args.track and len(b_obs_subset) > 0:
                 # Assuming b_obs_subset is a tensor
                 m = template.get_mask(b_obs_subset / 255.)
