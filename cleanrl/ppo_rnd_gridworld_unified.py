@@ -195,6 +195,15 @@ class SiameseAttentionNetwork(nn.Module):
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, num_classes)
         
+    def multisoftmax(self, x, num_labels=3):
+        raw_x = x
+        att = torch.zeros_like(x).to(device)
+        for _ in range(num_labels):
+            a = F.softmax(raw_x, dim=1)
+            att += a
+            raw_x *= (1. - a)
+        return att / 3.
+
     def forward(self, x1, x2):
         # Forward pass through base network
         out1 = self.base_network(x1)
@@ -212,8 +221,8 @@ class SiameseAttentionNetwork(nn.Module):
         # Compute attention weights
         att1 = self.attention_fc(out1.view(*out1.shape[:2], -1))
         att2 = self.attention_fc(out2.view(*out2.shape[:2], -1))
-        att1 = F.softmax(att1, dim=1)
-        att2 = F.softmax(att2, dim=1)
+        att1 = self.multisoftmax(att1)
+        att2 = self.multisoftmax(att2)
 
         out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
         out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
@@ -345,8 +354,10 @@ class Args:
     """train every"""
     template_lr: float = 1e-4
     '''learning rate'''
-    template_epochs: int = 2
+    template_epochs: int = 1
     """template epochs"""
+    template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
+    """epoch training schedule. Useful for faster training"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -561,6 +572,13 @@ if __name__ == "__main__":
     args.num_iterations = args.total_timesteps // args.batch_size
     early_stopping_counter = args.total_timesteps
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    assert (s := args.template_training_schedule) is None or len(s[0]) == len(s[1])
+
+    args.template_training_schedule[0].insert(0, -1)
+    args.template_training_schedule[1].insert(0, args.template_epochs)
+    args.template_training_schedule[0].append(np.inf)
+    args.template_training_schedule[1].append(0)
+
     if args.track:
         import wandb
 
@@ -907,7 +925,9 @@ if __name__ == "__main__":
             running_local_loss = []
             running_total_loss = []
             red_found = []
-            for _ in range(args.template_epochs):
+            
+            epochs = next(s[i-1][1] for i, s in enumerate(args.template_training_schedule) if s[0] < update)
+            for _ in range(epochs):
                 for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                     mb_dones = b_dones[start:end]
                     mb_mask_inds = b_inds[start:end]
@@ -941,10 +961,13 @@ if __name__ == "__main__":
             b_obs_subset = b_obs[b_inds[:16]]
             if args.track and len(b_obs_subset) > 0:
                 # Assuming b_obs_subset is a tensor
-                m = template.get_mask(b_obs_subset / 255.)
+                _, raw_m, att = template.net.get_mask(b_obs_subset / 255.)
+                m = (raw_m * att[...,None]).sum(1, keepdim=True)
+                m = F.interpolate(m, obs_shape[-2:])
+                
                 masked = b_obs_subset*m
                 mask = m.tile((1, 3, 1, 1))
-                grid = torchvision.utils.make_grid(torch.cat([b_obs_subset, mask, masked]), nrow=16, scale_each=True, normalize=True)
+                grid = torchvision.utils.make_grid(torch.cat([b_obs_subset, raw_m, mask, masked]), nrow=16, scale_each=True, normalize=True)
                 writer.add_image("images/masked_images", grid, global_step)
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
