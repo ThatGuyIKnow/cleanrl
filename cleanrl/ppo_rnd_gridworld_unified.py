@@ -330,7 +330,7 @@ class Args:
     """masking template cell size"""
     alpha: float = 0.0
     """transparancy"""
-    train_mask_at: int = 1
+    train_mask_at: int = 5e4
     """start masking at step"""
     template_batch: int = 64
     """train batches"""
