@@ -331,7 +331,7 @@ class Args:
     """masking template cell size"""
     alpha: float = 0.0
     """transparancy"""
-    train_mask_at: int = 5e4
+    train_mask_at: int = 5e8 # Never gonna happen fr fr
     """start masking at step"""
     template_batch: int = 64
     """train batches"""
@@ -597,7 +597,7 @@ if __name__ == "__main__":
         args.env_id,
         **env_kwargs
     )
-    
+
     if args.early_stopping_threshold and hasattr(envs, 'max_reward'):
         args.max_reward = envs.max_reward * (1-args.early_stopping_threshold)
 
