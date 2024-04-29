@@ -331,7 +331,7 @@ class Args:
     """masking template cell size"""
     alpha: float = 0.0
     """transparancy"""
-    train_mask_at: int = 5e8 # Never gonna happen fr fr
+    train_mask_at: int = 0
     """start masking at step"""
     template_batch: int = 64
     """train batches"""
@@ -339,7 +339,7 @@ class Args:
     """train every"""
     template_lr: float = 5e-4
     '''learning rate'''
-    template_epochs: int = 3
+    template_epochs: int = 1
     """template epochs"""
 
     # to be filled in runtime
