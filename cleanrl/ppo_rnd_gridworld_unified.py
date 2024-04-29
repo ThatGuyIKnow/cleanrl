@@ -184,7 +184,7 @@ class SiameseAttentionNetwork(nn.Module):
 
 
         self.template_counts = attention_hidden_size
-        self.template = torch.jit.script(Template(M=1, cutoff=0.2, out_size=84, var=[6,5], stride=2, device=device))
+        self.template = torch.jit.script(Template(M=1, cutoff=0.2, out_size=84, var=[22,21], stride=2, device=device))
         
         
         # Spatial attention module
