@@ -4,7 +4,7 @@ import random
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -29,6 +29,7 @@ import torch.nn.functional as F
 from torch.jit import script
 from torch import Tensor
 from typing import Optional, Tuple, Union
+
 
 
 class BaseNetwork(nn.Module):
@@ -336,7 +337,7 @@ class Args:
     """train batches"""
     template_train_every: int = 1
     """train every"""
-    template_lr: float = 1e-4
+    template_lr: float = 5e-4
     '''learning rate'''
     template_epochs: int = 3
     """template epochs"""
@@ -596,7 +597,7 @@ if __name__ == "__main__":
         args.env_id,
         **env_kwargs
     )
-
+    
     if args.early_stopping_threshold and hasattr(envs, 'max_reward'):
         args.max_reward = envs.max_reward * (1-args.early_stopping_threshold)
 
@@ -650,22 +651,22 @@ if __name__ == "__main__":
     num_updates = args.total_timesteps // args.batch_size
 
     print("Start to initialize observation normalization parameter.....")
-    next_ob = []
-    masks = []
-    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-        acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
-        s, r, d, t, _ = envs.step(acs)
-        next_ob += list(s)
-        with torch.no_grad():
-            m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
-        masks += list(m)
+    # next_ob = []
+    # masks = []
+    # for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+    #     acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
+    #     s, r, d, t, _ = envs.step(acs)
+    #     next_ob += list(s)
+    #     with torch.no_grad():
+    #         m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
+    #     masks += list(m)
 
-        if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-            next_ob = np.stack(next_ob)
-            mask = np.stack(masks)
-            obs_rms.update(next_ob * mask)
-            next_ob = []
-            masks = []
+    #     if len(next_ob) % (args.num_steps * args.num_envs) == 0:
+    #         next_ob = np.stack(next_ob)
+    #         mask = np.stack(masks)
+    #         obs_rms.update(next_ob * mask)
+    #         next_ob = []
+    #         masks = []
     print("End to initialize...")
     start_time = time.time()
 
@@ -892,8 +893,13 @@ if __name__ == "__main__":
 
         if update % args.template_train_every == 0:
             b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
-            b_dones = dones.reshape((-1,)).cpu().bool().numpy()
+            b_actions = actions.swapdims(0, 1).reshape(-1)
+            b_dones = dones.swapdims(0, 1).reshape(-1).cpu().bool().numpy()
             running_accuracy = []
+            running_action_loss = []
+            running_local_loss = []
+            running_total_loss = []
+            red_found = []
             for _ in range(args.template_epochs):
                 for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                     mb_dones = b_dones[start:end]
@@ -913,13 +919,16 @@ if __name__ == "__main__":
                     total_loss = action_loss + local_loss
                     
                     running_accuracy += [multiclass_accuracy(b_act_pred.argmax(dim=-1), b_act.argmax(dim=-1), num_classes=int(action_n)).cpu(),]
+                    running_action_loss += [action_loss.item(), ]
+                    running_local_loss += [local_loss.item(), ]
+                    running_total_loss += [total_loss.item(), ]
 
                     mask_optimizer.zero_grad()
                     total_loss.backward()
                     mask_optimizer.step()
-            writer.add_scalar("losses/action_loss", action_loss.item(), global_step)
-            writer.add_scalar("losses/local_mask_loss", local_loss.item(), global_step)
-            writer.add_scalar("losses/total_action_loss", total_loss.item(), global_step)
+            writer.add_scalar("losses/action_loss", np.array(running_action_loss).mean(), global_step)
+            writer.add_scalar("losses/local_mask_loss", np.array(running_local_loss).mean(), global_step)
+            writer.add_scalar("losses/total_action_loss", np.array(running_total_loss).mean(), global_step)
             writer.add_scalar("losses/action_accuracy", np.array(running_accuracy).mean(), global_step)
 
             b_obs_subset = b_obs[b_inds[:16]]
