@@ -242,14 +242,9 @@ class SiameseAttentionNetwork(nn.Module):
         # Compute attention weights
             att1 = self.attention_fc(out1.view(*out1.shape[:2], -1))
             att1 = F.softmax(att1, dim=1)
-            
-
-            out1 *= att1.unsqueeze(-1)
-            obs_mask *= att1.unsqueeze(-1)
 
 
-
-        return out1, obs_mask
+        return out1, obs_mask, att1
         
 
 
@@ -489,7 +484,8 @@ class TemplateMasking(nn.Module):
         return self.net(x1, x2)
 
     def get_mask(self, x):
-        m = self.net.get_mask(x)[1].mean(1, keepdim=True)
+        _, m, att = self.net.get_mask(x)
+        m = (m * att[...,None]).sum(1, keepdim=True)
         return F.interpolate(m, self.shape[-2:])
     
 class RNDModel(nn.Module):
