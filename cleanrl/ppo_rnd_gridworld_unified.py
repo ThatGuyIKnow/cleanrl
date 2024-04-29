@@ -139,8 +139,8 @@ class Template(nn.Module):
 
     def get_masked_output(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         # For each element in the batch, find the max pool index to select the corresponding template
-        _, indices = F.max_pool2d(x.sum(dim=1), self.out_size, return_indices=True)
-        indices = indices.view(x.shape[0], 1).long()
+        _, indices = F.max_pool2d(x, self.out_size, return_indices=True)
+        indices = indices.view(x.shape[:2]).long()
         
         # Interpolate between the identity mask and the filtered templates based on mixin_factor
         mask = self.get_mask_from_indices(indices)
@@ -200,11 +200,6 @@ class SiameseAttentionNetwork(nn.Module):
         out1 = self.base_network(x1)
         out2 = self.base_network(x2)
         
-        # Compute attention weights
-        att1 = self.attention_fc(out1.reshape(out1.size(0), -1))
-        att2 = self.attention_fc(out2.reshape(out2.size(0), -1))
-        att1 = F.softmax(att1, dim=1).unsqueeze(2).unsqueeze(3)
-        att2 = F.softmax(att2, dim=1).unsqueeze(2).unsqueeze(3)
 
         # out1 = out1.sum(dim=1)[:,None]
         # out2 = out2.sum(dim=1)[:,None]
@@ -214,13 +209,18 @@ class SiameseAttentionNetwork(nn.Module):
             out1, obs_mask, local_loss1 = self.template(out1, train=True)
             out2, obs_mask, local_loss2 = self.template(out2, train=True)
 
-        # Apply spatial attention
-        out1 = out1 * att1
-        out2 = out2 * att2
-
         out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
         out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
         
+        # Compute attention weights
+        att1 = self.attention_fc(out1.reshape(out1.size(0), -1))
+        att2 = self.attention_fc(out2.reshape(out2.size(0), -1))
+        att1 = F.softmax(att1, dim=1).unsqueeze(2).unsqueeze(3)
+        att2 = F.softmax(att2, dim=1).unsqueeze(2).unsqueeze(3)
+
+        out1 = out1 * att1
+        out2 = out2 * att2
+
         # Merge features
         merged_features = torch.cat((out1, out2), dim=1)
         
