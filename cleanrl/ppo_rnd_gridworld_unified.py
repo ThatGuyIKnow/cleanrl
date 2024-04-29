@@ -213,10 +213,10 @@ class SiameseAttentionNetwork(nn.Module):
         out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
         
         # Compute attention weights
-        att1 = self.attention_fc(out1.reshape(out1.size(0), -1))
-        att2 = self.attention_fc(out2.reshape(out2.size(0), -1))
-        att1 = F.softmax(att1, dim=1).unsqueeze(2).unsqueeze(3)
-        att2 = F.softmax(att2, dim=1).unsqueeze(2).unsqueeze(3)
+        att1 = self.attention_fc(out1)
+        att2 = self.attention_fc(out2)
+        att1 = F.softmax(att1, dim=1)
+        att2 = F.softmax(att2, dim=1)
 
         out1 = out1 * att1
         out2 = out2 * att2
