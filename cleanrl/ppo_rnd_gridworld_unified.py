@@ -223,7 +223,7 @@ class SiameseAttentionNetwork(nn.Module):
         out2 = out2 * att2.squeeze(2)
 
         # Merge features
-        merged_features = torch.cat((out1, out2), dim=1)
+        merged_features = out1 - out2
         
         # Classifier
         out = F.relu(self.fc1(merged_features.reshape(merged_features.size(0), -1)))
