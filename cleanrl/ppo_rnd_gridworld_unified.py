@@ -929,7 +929,6 @@ if __name__ == "__main__":
                 masked = b_obs_subset*m
                 mask = m.tile((1, 3, 1, 1))
                 grid = torchvision.utils.make_grid(torch.cat([b_obs_subset, mask, masked]), nrow=16, scale_each=True, normalize=True)
-                grid = wandb.Image(grid)
                 writer.add_image("images/masked_images", grid, global_step)
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
