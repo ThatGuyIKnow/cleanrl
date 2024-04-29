@@ -139,7 +139,7 @@ class Template(nn.Module):
     def get_masked_output(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         # For each element in the batch, find the max pool index to select the corresponding template
         _, indices = F.max_pool2d(x.sum(dim=1), self.out_size, return_indices=True)
-        indices = indices.view(x.shape[:2]).long()
+        indices = indices.view((x.shape[0], 1)).long()
         
         # Interpolate between the identity mask and the filtered templates based on mixin_factor
         mask = self.get_mask_from_indices(indices)
