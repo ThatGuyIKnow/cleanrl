@@ -339,13 +339,13 @@ class Args:
     """transparancy"""
     train_mask_at: int = 0
     """start masking at step"""
-    template_batch: int = 64
+    template_batch: int = 128
     """train batches"""
-    template_train_every: int = 1
+    template_train_every: int = 2
     """train every"""
-    template_lr: float = 5e-4
+    template_lr: float = 1e-4
     '''learning rate'''
-    template_epochs: int = 1
+    template_epochs: int = 2
     """template epochs"""
 
     # to be filled in runtime
