@@ -339,7 +339,7 @@ class Args:
     """transparancy"""
     train_mask_at: int = 0
     """start masking at step"""
-    template_batch: int = 128
+    template_batch: int = 64
     """train batches"""
     template_train_every: int = 2
     """train every"""
