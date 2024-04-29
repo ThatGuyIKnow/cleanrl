@@ -926,7 +926,7 @@ if __name__ == "__main__":
             running_total_loss = []
             red_found = []
             
-            epochs = next(s[i-1][1] for i, s in enumerate(args.template_training_schedule) if s[0] < update)
+            epochs = next(args.template_training_schedule[1][i-1] for i, s in enumerate(args.template_training_schedule[0]) if s < update)
             for _ in range(epochs):
                 for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                     mb_dones = b_dones[start:end]
