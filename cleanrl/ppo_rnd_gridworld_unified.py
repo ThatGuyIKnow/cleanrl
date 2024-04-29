@@ -6,7 +6,6 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
-import cv2
 import gymnasium as gym
 import numpy as np
 import torch
@@ -18,18 +17,18 @@ import tyro
 from gym.wrappers.normalize import RunningMeanStd
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+from torchmetrics.functional.classification import multiclass_accuracy
+import torchvision
 
 import visual_gridworld
 from visual_gridworld.gridworld.minigrid_procgen import GridworldResizeObservation
-import sys
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.jit import script
 from torch import Tensor
-from typing import List, Literal, Optional, Sequence, Tuple, Union
-from functools import partial
+from typing import Optional, Tuple, Union
 
 
 class BaseNetwork(nn.Module):
@@ -333,12 +332,14 @@ class Args:
     """transparancy"""
     train_mask_at: int = 5e5
     """start masking at step"""
-    template_batch: int = 128
+    template_batch: int = 64
     """train batches"""
     template_train_every: int = 1
     """train every"""
-    template_lr: float = 5e-4
+    template_lr: float = 1e-4
     '''learning rate'''
+    template_epochs: int = 3
+    """template epochs"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -657,8 +658,6 @@ if __name__ == "__main__":
         next_ob += list(s)
         with torch.no_grad():
             m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
-        # p_pos = torch.from_numpy(envs.get_player_position()).to(device)
-        # m = rnd_model.make_template(p_pos)
         masks += list(m)
 
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
@@ -894,31 +893,44 @@ if __name__ == "__main__":
         if update % args.template_train_every == 0:
             b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
             b_dones = dones.reshape((-1,)).cpu().bool().numpy()
+            running_accuracy = []
+            for _ in range(args.template_epochs):
+                for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
+                    mb_dones = b_dones[start:end]
+                    mb_mask_inds = b_inds[start:end]
+                    valid_inds = ((~mb_dones) & (mb_mask_inds != (len(b_obs)-1)))
+                    mb_mask_inds = mb_mask_inds[valid_inds]
 
-            for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
-                mb_dones = b_dones[start:end]
-                mb_mask_inds = b_inds[start:end]
-                valid_inds = ((~mb_dones) & (mb_mask_inds != (len(b_obs)-1)))
-                mb_mask_inds = mb_mask_inds[valid_inds]
+                    
+                    
+                    if len(mb_mask_inds) == 0:
+                        continue
+                    b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
+                                                        b_obs[mb_mask_inds + 1] / 255.)
+                    local_loss = local_loss.mean()
+                    b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
+                    action_loss = mask_criterion(b_act_pred, b_act)
+                    total_loss = action_loss + local_loss
+                    
+                    running_accuracy += [multiclass_accuracy(b_act_pred.argmax(dim=-1), b_act.argmax(dim=-1), num_classes=int(action_n)),]
 
-                
-                
-                if len(mb_mask_inds) == 0:
-                    continue
-                b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
-                                                    b_obs[mb_mask_inds + 1] / 255.)
-                local_loss = local_loss.mean()
-                b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                action_loss = mask_criterion(b_act_pred, b_act)
-                total_loss = action_loss + local_loss
-                
-                mask_optimizer.zero_grad()
-                total_loss.backward()
-                mask_optimizer.step()
+                    mask_optimizer.zero_grad()
+                    total_loss.backward()
+                    mask_optimizer.step()
             writer.add_scalar("losses/action_loss", action_loss.item(), global_step)
             writer.add_scalar("losses/local_mask_loss", local_loss.item(), global_step)
             writer.add_scalar("losses/total_action_loss", total_loss.item(), global_step)
+            writer.add_scalar("losses/action_accuracy", np.array(running_accuracy).mean(), global_step)
 
+            b_obs_subset = b_obs[:16]
+            if args.track and len(b_obs_subset) > 0:
+                # Assuming b_obs_subset is a tensor
+                m = template.get_mask(b_obs_subset / 255.)
+                masked = b_obs_subset*m
+                mask = m.tile((1, 3, 1, 1))
+                grid = torchvision.utils.make_grid(torch.cat([b_obs_subset, mask, masked]), nrow=16, scale_each=True, normalize=True)
+                grid = wandb.Image(grid)
+                writer.add_image("images/masked_images", grid, global_step)
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
         writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
