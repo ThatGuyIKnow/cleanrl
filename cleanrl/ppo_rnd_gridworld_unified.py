@@ -40,8 +40,8 @@ class BaseNetwork(nn.Module):
         self.pool = nn.MaxPool2d(2, 2)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
         return x
 
 
@@ -177,14 +177,14 @@ class SiameseAttentionNetwork(nn.Module):
         self.mask = False
         # Attention mechanism
         self.attention_fc = nn.Sequential(
-            nn.Linear(21*21, attention_hidden_size),
+            nn.LazyLinear(attention_hidden_size),
             nn.ReLU(),
             nn.Linear(attention_hidden_size, 1)
         )
 
 
         self.template_counts = attention_hidden_size
-        self.template = torch.jit.script(Template(M=1, cutoff=0.2, out_size=21, var=[6,5], stride=4, device=device))
+        self.template = torch.jit.script(Template(M=1, cutoff=0.2, out_size=84, var=[6,5], stride=2, device=device))
         
         
         # Spatial attention module
