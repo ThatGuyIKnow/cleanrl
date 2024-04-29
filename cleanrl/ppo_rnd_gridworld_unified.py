@@ -228,7 +228,7 @@ class SiameseAttentionNetwork(nn.Module):
         out = F.relu(self.fc1(merged_features.reshape(merged_features.size(0), -1)))
         out = F.relu(self.fc2(out))
         out = self.fc3(out)
-         
+
         return out, 0.5*(local_loss1 + local_loss2)
 
     def get_mask(self, x):
@@ -909,7 +909,7 @@ if __name__ == "__main__":
                                                     b_obs[mb_mask_inds + 1] / 255.)
                 local_loss = local_loss.mean()
                 b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                action_loss = mask_criterion(b_act, b_act_pred)
+                action_loss = mask_criterion(b_act_pred, b_act)
                 total_loss = action_loss + local_loss
                 
                 mask_optimizer.zero_grad()
