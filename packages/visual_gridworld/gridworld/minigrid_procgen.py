@@ -844,7 +844,7 @@ class DoorKey5x5Gridworld(Gridworld):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     env_name = "DoorKey5x5-Gridworld-v0"
     width = height = 5
-    _max_episode_steps = 10 * width**2
+    _max_episode_steps = 10 * (width**2)
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', mode='hard', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed, mode=mode)
@@ -857,7 +857,7 @@ class DoorKey6x6Gridworld(Gridworld):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     env_name = "DoorKey6x6-Gridworld-v0"
     width = height = 6
-    _max_episode_steps = 10 * width**2
+    _max_episode_steps = 10 * (width**2)
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', mode='hard', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed, mode=mode)
@@ -870,7 +870,7 @@ class DoorKey8x8Gridworld(Gridworld):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     env_name = "DoorKey8x8-Gridworld-v0"
     width = height = 8
-    _max_episode_steps = 10 * width**2
+    _max_episode_steps = 10 * (width**2)
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', mode='hard', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed, mode=mode)
@@ -884,7 +884,7 @@ class DoorKey16x16Gridworld(Gridworld):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     env_name = "DoorKey16x16-Gridworld-v0"
     width = height = 16
-    _max_episode_steps = 10 * width**2
+    _max_episode_steps = 10 * (width**2)
 
     def __init__(self, cell_size = 30, num_envs=1, fixed=False, max_steps = None, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', mode='hard', seed=None):
         grid_gen = DoorKeyGridworld(seed, width=self.width, height=self.height, fixed=fixed, mode=mode)

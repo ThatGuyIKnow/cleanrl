@@ -244,8 +244,6 @@ class SiameseAttentionNetwork(nn.Module):
         return out1, obs_mask, att1
         
 
-
-
 @dataclass
 class Args:
     exp_name: str = os.path.basename(__file__)[: -len(".py")]
@@ -272,7 +270,7 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "Visual/DoorKey16x16-Gridworld-v0"
+    env_id: str = "Visual/MultiRoomS10N6-Gridworld-v0"
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
@@ -729,7 +727,7 @@ if __name__ == "__main__":
 
             visited_rooms = []
             for idx, d in enumerate(done):
-                if d:
+                if d.astype(int) == 1:
                     avg_returns.append(info["r"][idx])
                     epi_ret = np.average(avg_returns)
                     print(
