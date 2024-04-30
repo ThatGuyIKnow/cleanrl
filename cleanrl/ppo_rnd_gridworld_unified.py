@@ -600,7 +600,8 @@ if __name__ == "__main__":
         num_envs=args.num_envs,
         cell_size=args.cell_size,
         fixed=args.fixed,
-        seed=args.seed,)
+        seed=args.seed,
+        camera_mode = 'room_centric',)
     if args.env_mode is not None:
         env_kwargs['mode'] = args.env_mode
 
