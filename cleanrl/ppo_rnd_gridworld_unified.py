@@ -480,10 +480,10 @@ class TemplateMasking(nn.Module):
 
 
     def forward(self, x1, x2):
-        return self.net(x1, x2)
+        return self.net(x1  / 255.0, x2 / 255.0)
 
     def get_mask(self, x):
-        _, m, att = self.net.get_mask(x)
+        _, m, att = self.net.get_mask(x / 255.0)
         m = (m * att[...,None]).sum(1, keepdim=True)
         return F.interpolate(m, self.shape[-2:]) / m.max()
     
@@ -658,27 +658,27 @@ if __name__ == "__main__":
     next_obs, info = envs.reset()
     next_obs = torch.Tensor(next_obs).to(device)
     # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
-    next_player_masks = template.get_mask(next_obs.to(device) / 255.)
+    next_player_masks = template.get_mask(next_obs.to(device))
     next_done = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
 
     print("Start to initialize observation normalization parameter.....")
-    # next_ob = []
-    # masks = []
-    # for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-    #     acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
-    #     s, r, d, t, _ = envs.step(acs)
-    #     next_ob += list(s)
-    #     with torch.no_grad():
-    #         m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
-    #     masks += list(m)
+    next_ob = []
+    masks = []
+    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+        acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
+        s, r, d, t, _ = envs.step(acs)
+        next_ob += list(s)
+        with torch.no_grad():
+            m = template.get_mask(torch.from_numpy(s).to(device)).cpu().numpy()
+        masks += list(m)
 
-    #     if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-    #         next_ob = np.stack(next_ob)
-    #         mask = np.stack(masks)
-    #         obs_rms.update(next_ob * mask)
-    #         next_ob = []
-    #         masks = []
+        if len(next_ob) % (args.num_steps * args.num_envs) == 0:
+            next_ob = np.stack(next_ob)
+            mask = np.stack(masks)
+            obs_rms.update(next_ob * mask)
+            next_ob = []
+            masks = []
     print("End to initialize...")
     start_time = time.time()
 
@@ -713,9 +713,9 @@ if __name__ == "__main__":
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
             # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
-            mask = template.get_mask(next_obs.to(device) / 255.)
+            mask = template.get_mask(next_obs.to(device))
             # mask = rnd_model.make_template(next_player_pos)
-            masked_next_obs = (next_obs * mask) / 255.
+            masked_next_obs = next_obs * mask
             rnd_next_obs = (
                 (
                     (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
@@ -815,7 +815,7 @@ if __name__ == "__main__":
         b_advantages = b_int_advantages * args.int_coef + b_ext_advantages * args.ext_coef
 
         # mask = rnd_model.make_template(b_player_pos)
-        masked_b_obs = b_obs.clone().detach() / 255.
+        masked_b_obs = b_obs.clone().detach()
         masked_b_obs *= b_player_masks 
         obs_rms.update(masked_b_obs.cpu().numpy())
 
@@ -926,8 +926,8 @@ if __name__ == "__main__":
                     
                     if len(mb_mask_inds) == 0:
                         continue
-                    b_act_pred, local_loss = template(b_obs[mb_mask_inds] / 255.,
-                                                        b_obs[mb_mask_inds + 1] / 255.)
+                    b_act_pred, local_loss = template(b_obs[mb_mask_inds],
+                                                        b_obs[mb_mask_inds + 1])
                     local_loss = local_loss.mean()
                     b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
                     action_loss = mask_criterion(b_act_pred, b_act)
@@ -949,7 +949,7 @@ if __name__ == "__main__":
             b_obs_subset = b_obs[b_inds[:16]]
             if args.track and len(b_obs_subset) > 0:
                 # Assuming b_obs_subset is a tensor
-                _, raw_m, att = template.net.get_mask(b_obs_subset / 255.)
+                _, raw_m, att = template.net.get_mask(b_obs_subset)
                 m = (raw_m * att[...,None]).sum(1, keepdim=True)
                 m = F.interpolate(m, obs_shape[-2:])
                 raw_m = raw_m.mean(dim=1, keepdim=True)
