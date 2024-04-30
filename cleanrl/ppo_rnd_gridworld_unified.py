@@ -346,6 +346,8 @@ class Args:
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
+    start_normalizing: int = 5
+    """When to start normalizing the masked input. This is to """
 
     # to be filled in runtime
     batch_size: int = 0
@@ -484,15 +486,13 @@ class TemplateMasking(nn.Module):
 
     def get_mask(self, x):
         _, m, att = self.net.get_mask(x)
-        m = (m * att[...,None]).mean(1, keepdim=True)
-        return F.interpolate(m, self.shape[-2:])
+        m = (m * att[...,None]).sum(1, keepdim=True)
+        return F.interpolate(m, self.shape[-2:]) / m.max()
     
 class RNDModel(nn.Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self):
         super().__init__()
 
-        self.input_size = input_size
-        self.output_size = output_size
 
         feature_output = 7 * 7 * 64
 
@@ -625,7 +625,7 @@ if __name__ == "__main__":
     template = TemplateMasking(obs_shape, action_n)
     template.to(device)
     template.net.mask = False
-    rnd_model = RNDModel(4, envs.single_action_space.n).to(device)
+    rnd_model = RNDModel().to(device)
     combined_parameters = list(agent.parameters()) + list(rnd_model.predictor.parameters())
     optimizer = optim.Adam(
         combined_parameters,
@@ -664,22 +664,22 @@ if __name__ == "__main__":
     num_updates = args.total_timesteps // args.batch_size
 
     print("Start to initialize observation normalization parameter.....")
-    next_ob = []
-    masks = []
-    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-        acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
-        s, r, d, t, _ = envs.step(acs)
-        next_ob += list(s)
-        with torch.no_grad():
-            m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
-        masks += list(m)
+    # next_ob = []
+    # masks = []
+    # for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+    #     acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
+    #     s, r, d, t, _ = envs.step(acs)
+    #     next_ob += list(s)
+    #     with torch.no_grad():
+    #         m = template.get_mask(torch.from_numpy(s).to(device) / 255.).cpu().numpy()
+    #     masks += list(m)
 
-        if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-            next_ob = np.stack(next_ob)
-            mask = np.stack(masks)
-            obs_rms.update(next_ob * mask)
-            next_ob = []
-            masks = []
+    #     if len(next_ob) % (args.num_steps * args.num_envs) == 0:
+    #         next_ob = np.stack(next_ob)
+    #         mask = np.stack(masks)
+    #         obs_rms.update(next_ob * mask)
+    #         next_ob = []
+    #         masks = []
     print("End to initialize...")
     start_time = time.time()
 
@@ -716,7 +716,7 @@ if __name__ == "__main__":
             # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
             mask = template.get_mask(next_obs.to(device) / 255.)
             # mask = rnd_model.make_template(next_player_pos)
-            masked_next_obs = next_obs * mask
+            masked_next_obs = (next_obs * mask) / 255.
             rnd_next_obs = (
                 (
                     (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
@@ -816,8 +816,8 @@ if __name__ == "__main__":
         b_advantages = b_int_advantages * args.int_coef + b_ext_advantages * args.ext_coef
 
         # mask = rnd_model.make_template(b_player_pos)
-        masked_b_obs = b_obs.clone().detach()
-        masked_b_obs *= b_player_masks
+        masked_b_obs = b_obs.clone().detach() / 255.
+        masked_b_obs *= b_player_masks 
         obs_rms.update(masked_b_obs.cpu().numpy())
 
         # Optimizing the policy and value network
