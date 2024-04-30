@@ -200,10 +200,6 @@ class SiameseAttentionNetwork(nn.Module):
         # Forward pass through base network
         out1 = self.base_network(x1)
         out2 = self.base_network(x2)
-        
-
-        # out1 = out1.sum(dim=1)[:,None]
-        # out2 = out2.sum(dim=1)[:,None]
 
         local_loss1 = local_loss2 = torch.zeros([out1.size(0)]).to(device)
         if self.mask:
@@ -488,7 +484,7 @@ class TemplateMasking(nn.Module):
 
     def get_mask(self, x):
         _, m, att = self.net.get_mask(x)
-        m = (m * att[...,None]).sum(1, keepdim=True)
+        m = (m * att[...,None]).mean(1, keepdim=True)
         return F.interpolate(m, self.shape[-2:])
     
 class RNDModel(nn.Module):
@@ -919,6 +915,7 @@ if __name__ == "__main__":
             red_found = []
             
             epochs = next(args.template_training_schedule[1][i-1] for i, s in enumerate(args.template_training_schedule[0]) if update < s)
+            writer.add_scalar("losses/action_training_epochs", epochs, global_step)
             for _ in range(epochs):
                 for start, end in pairwise(range(0, len(b_inds), args.template_batch)):
                     mb_dones = b_dones[start:end]
