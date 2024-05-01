@@ -20,7 +20,7 @@ class Args:
     """avaliable device ids"""
     include_random: bool = False
     """avaliable device ids"""
-    include_none_rnd: bool = True
+    include_none_rnd: bool = False
     """avaliable device ids"""
     include_noisy: bool = False
     """avaliable device ids"""
@@ -136,8 +136,8 @@ if __name__ == '__main__':
         all_options.append(Option('include_fixed', ['fixed_seed'], ['--fixed'], ''))
     
 
-    if args.include_template:
-        all_options.append(Option('include_template', ['template',None], ['--use-template', '--no-use-template'], ''))
+    # if args.include_template:
+    #     all_options.append(Option('include_template', ['template',None], ['--use-template', '--no-use-template'], ''))
 
     if args.include_none_rnd:
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
