@@ -391,7 +391,6 @@ class Gridworld(gymnasium.Env):
 
         self.divide_rooms = False
         self.agent_centric = False
-        # camera_mode = 'agent_centric'
         self.show_key_icon = show_key_icon
 
         if camera_mode == 'room_centric':
@@ -950,6 +949,18 @@ class NoisyGridworldWrapper(gymnasium.ObservationWrapper):
         self.env = env
         self.cutoff = 255 - int(255 * alpha)
         self.alpha = alpha
+
+
+        self.step = self.env.step
+        self.reset = self.env.reset
+        self.metadata = self.env.metadata
+        self.observation_space = self.env.observation_space
+        self.action_space =self.env.action_space
+        self.single_observation_space = self.env.single_observation_space
+        self.single_action_space = self.env.single_action_space
+        self.get_player_position = self.env.get_player_position
+        self.get_grid = self.env.get_grid
+        self.screen = self.env.screen
         
     def observation(self, observation):
         """Returns a modified observation.
@@ -1204,6 +1215,18 @@ class BlockyBackgroundGridworldWrapper(gymnasium.ObservationWrapper):
         self.speed = speed
         self.scroll = 0
 
+
+        self.step = self.env.step
+        self.reset = self.env.reset
+        self.metadata = self.env.metadata
+        self.observation_space = self.env.observation_space
+        self.action_space =self.env.action_space
+        self.single_observation_space = self.env.single_observation_space
+        self.single_action_space = self.env.single_action_space
+        self.get_player_position = self.env.get_player_position
+        self.get_grid = self.env.get_grid
+        self.screen = self.env.screen
+
     def get_colors(self, colors):
         rgb_colors = [c.hsv_to_rgb(i/float(colors), 1., 1.) for i in range(colors)]
         return np.array(rgb_colors, dtype=np.uint8) * 255
@@ -1259,32 +1282,6 @@ class BlockyBackgroundGridworldWrapper(gymnasium.ObservationWrapper):
         surf = pygame.surfarray.make_surface(screen)
         self.env.screen.blit(surf, (0, 0))
         pygame.display.update()
-
-
-class BlockyMultiRoomS10N6GridWorld(gymnasium.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
-    env_name = "BlockyMultiRoomS10N6-Gridworld-v0"
-    room_count = 6
-    max_room_size = 10
-    _max_episode_steps= room_count * 20
-
-    def __init__(self, cell_size = 30, num_envs=1, fixed=False, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None,  **kwargs):
-        super().__init__()
-        self.env = BlockyBackgroundGridworldWrapper(MultiRoomS10N6GridWorld(cell_size, num_envs, fixed, render_mode, seed,  **kwargs))
-
-        self.step = self.env.step
-        self.reset = self.env.reset
-        self.render = self.env.render
-        self.observation = self.env.observation
-        self.metadata = self.env.metadata
-        self.observation_space = self.env.observation_space
-        self.action_space =self.env.action_space
-        self.single_observation_space = self.env.single_observation_space
-        self.single_action_space = self.env.single_action_space
-        self.get_player_position = self.env.get_player_position
-        self.get_grid = self.env.get_grid
-        self.rgb_render = self.env.rgb_render
-        self.screen = self.env.screen
 
 
 

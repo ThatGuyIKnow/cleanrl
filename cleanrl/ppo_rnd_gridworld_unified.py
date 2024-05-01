@@ -4,7 +4,7 @@ import random
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -21,7 +21,7 @@ from torchmetrics.functional.classification import multiclass_accuracy
 import torchvision
 
 import visual_gridworld
-from visual_gridworld.gridworld.minigrid_procgen import GridworldResizeObservation
+from visual_gridworld.gridworld.minigrid_procgen import BlockyBackgroundGridworldWrapper, GridworldResizeObservation, NoisyGridworldWrapper
 
 import torch
 import torch.nn as nn
@@ -204,12 +204,6 @@ class SiameseAttentionNetwork(nn.Module):
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, num_classes)
         
-    def multisoftmax(self, x, num_temps=4):
-        att = []
-        for x_ in x.chunk(num_temps, dim=1):
-            att.append(F.softmax(x_, dim=1))
-        return torch.cat(att, dim=1)
-
 
     def forward(self, x1, x2):
         # Forward pass through base network
@@ -226,8 +220,6 @@ class SiameseAttentionNetwork(nn.Module):
         att2 = self.attention_fc(crop_out2.view(*crop_out2.shape[:2], -1))
         att1 = F.softmax(att1, dim=1)
         att2 = F.softmax(att2, dim=1)
-        # att1 = self.multisoftmax(att1)
-        # att2 = self.multisoftmax(att2)
 
         out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
         out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
@@ -291,6 +283,14 @@ class Args:
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
+    camera_mode: Literal['full', 'agent_centric', 'room_centric'] = "full"
+    """camera mode. What does the camera follow"""
+    agent_view: Tuple[int, int] = (2, 2)
+    """Number of tiles the agent can see on either side in agent_centric view"""
+    background_noise: Optional[Literal['noisy', 'blocky']] = None
+    """Type of background noise (if any)"""
+    show_key_icon: bool = True
+    """whether to show the key icon"""
     cell_size: int = 10
     '''cell pixel size'''
     total_timesteps: int = int(13e6)
@@ -616,7 +616,9 @@ if __name__ == "__main__":
         cell_size=args.cell_size,
         fixed=args.fixed,
         seed=args.seed,
-        camera_mode = 'room_centric',)
+        camera_mode = args.camera_mode,
+        camera_kwargs = {'agent_view': np.array((2, 2) if args.agent_view is None else args.agent_view)},
+        show_key_icon=args.show_key_icon)
     if args.env_mode is not None:
         env_kwargs['mode'] = args.env_mode
 
@@ -627,7 +629,12 @@ if __name__ == "__main__":
 
     if args.early_stopping_threshold and hasattr(envs, 'max_reward'):
         args.max_reward = envs.max_reward * (1-args.early_stopping_threshold)
-
+    
+    if args.background_noise == "noisy":
+        envs = NoisyGridworldWrapper(envs, alpha = 1.)
+    elif args.background_noise == "blocky":
+        envs = BlockyBackgroundGridworldWrapper(envs)
+        
     envs = GridworldResizeObservation(envs, (84, 84))
     envs.num_envs = args.num_envs
     envs = RecordEpisodeStatistics(envs)

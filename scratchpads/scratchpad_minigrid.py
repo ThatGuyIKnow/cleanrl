@@ -10,7 +10,7 @@ import time
 import gymnasium as gym
 import datetime as dt
 
-from visual_gridworld.gridworld.minigrid_procgen import GridworldResizeObservation
+from visual_gridworld.gridworld.minigrid_procgen import BlockyBackgroundGridworldWrapper, GridworldResizeObservation, NoisyGridworldWrapper
 
 from multi_subproc import SubprocVecEnv
 
@@ -29,6 +29,7 @@ if __name__ == "__main__":
     num_envs = 16
     no_proc = 1
     e = gym.make('Visual/MultiRoomS10N6-Gridworld-v0', cell_size=8, seed=1, num_envs=num_envs, render_mode='human', fixed=True, camera_mode = 'room_centric')
+    e = NoisyGridworldWrapper(e)
     e = GridworldResizeObservation(e, (84, 84))
     e.reset()
 
