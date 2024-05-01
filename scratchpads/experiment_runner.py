@@ -12,7 +12,7 @@ class Args:
     """track the experiment"""
     wandb_project_name: str = 'gridworld-rnd-v2-unified'
     """track the experiment"""
-    repeats: int = 1
+    repeats: int = 2
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -32,7 +32,7 @@ class Args:
     """avaiable"""
     seed: int = 433
     """seed"""
-    max_workers: int = 4
+    max_workers: int = 3
     """Max gpu workeres"""
 
 args = tyro.cli(Args)
