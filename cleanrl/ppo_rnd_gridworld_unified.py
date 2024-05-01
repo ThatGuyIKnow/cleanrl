@@ -151,7 +151,7 @@ class Template(nn.Module):
         v = self.var[0]
         crop_x_masked = F.pad(x_masked, (v-1, v, v-1, v)).unfold(-2, 2*v, 1).unfold(-2, 2*v, 1)
         crop_x_masked = crop_x_masked.view(-1, 21, 21, 2*v, 2*v)
-        crop_x_masked = crop_x_masked[torch.arange(x.size(0)*x.size(1)), y_i.view(-1), x_i.view(-1)].view(64, 128, 2*v, 2*v)
+        crop_x_masked = crop_x_masked[torch.arange(x.size(0)*x.size(1)), y_i.view(-1), x_i.view(-1)].view(x.size(0), x.size(1), 2*v, 2*v)
         return x_masked, mask, crop_x_masked
     
     def compute_local_loss(self, x: Tensor) -> Tensor:  
