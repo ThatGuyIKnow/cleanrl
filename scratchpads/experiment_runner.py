@@ -125,10 +125,10 @@ if __name__ == '__main__':
     
 
     all_options.append(Option('env_id', env_tags, env_ids, '--env-id'))
-    all_options.append(Option('background_noise', env_bg_tags, env_options, '--background-noise'))
+    all_options.append(Option('background_noise', env_bg_tags, env_options, '--background_noise'))
     
     if args.include_camera_modes:
-        all_options.append(Option('camera_mode', ['full', 'agent_centric', 'room_centric'], ['full', 'agent_centric', 'room_centric'], '--camera-mode'))
+        all_options.append(Option('camera_mode', ['full', 'agent_centric', 'room_centric'], ['full', 'agent_centric', 'room_centric'], '--camera_mode'))
     
     if args.include_random:
         all_options.append(Option('include_fixed', ['random','fixed_seed'], ['--no-fixed', '--fixed'], ''))
