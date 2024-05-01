@@ -137,7 +137,7 @@ class Template(nn.Module):
         mask = F.relu(mask - self.cutoff) / self.cutoff
         return mask        
 
-    def get_masked_output(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def get_masked_output(self, x: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         # For each element in the batch, find the max pool index to select the corresponding template
         _, indices = F.max_pool2d(x, self.out_size, return_indices=True)
         indices = indices.view(x.shape[:2]).long()
@@ -146,7 +146,13 @@ class Template(nn.Module):
         mask = self.get_mask_from_indices(indices)
         # templates = torch.lerp(self.identity_mask, self.templates_f, self._mixin_factor)
         x_masked = x * mask
-        return x_masked, mask
+        x_i = indices % self.out_size
+        y_i = indices // self.out_size
+        v = self.var[0]
+        crop_x_masked = F.pad(x_masked, (v-1, v, v-1, v)).unfold(-2, 2*v, 1).unfold(-2, 2*v, 1)
+        crop_x_masked = crop_x_masked.view(-1, 21, 21, 2*v, 2*v)
+        crop_x_masked = crop_x_masked[torch.arange(8192), y_i.view(-1), x_i.view(-1)].view(64, 128, 2*v, 2*v)
+        return x_masked, mask, crop_x_masked
     
     def compute_local_loss(self, x: Tensor) -> Tensor:  
         # Calculate the tensor dot product between input x and templates, then softmax to get probabilities
@@ -161,14 +167,14 @@ class Template(nn.Module):
         loss = -torch.einsum('t,ct->c', self.p_T, p_x_T_log)
         return loss
 
-    def forward(self, x: Tensor, train: bool = True) -> Union[Tuple[Tensor, Tensor, Tensor], Tuple[Tensor, Tensor]]:
+    def forward(self, x: Tensor, train: bool = True) -> Union[Tuple[Tensor, Tensor, Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]]:
         # Main forward pass
-        x, obs_mask = self.get_masked_output(x)  # Get masked output based on the current mixin_factor
+        x, obs_mask, crop_obs_mask = self.get_masked_output(x)  # Get masked output based on the current mixin_factor
         if train:
             # If training, also compute the local loss
             loss_1 = self.compute_local_loss(x)
-            return x, obs_mask, loss_1  # Return the masked input and the computed loss
-        return x, obs_mask # For inference, just return the masked input
+            return x, obs_mask, loss_1, crop_obs_mask  # Return the masked input and the computed loss
+        return x, obs_mask, crop_obs_mask # For inference, just return the masked input
 
 class SiameseAttentionNetwork(nn.Module):
     def __init__(self, base_network, attention_hidden_size=128, num_classes=10):
@@ -184,7 +190,9 @@ class SiameseAttentionNetwork(nn.Module):
 
 
         self.template_counts = attention_hidden_size
-        self.template = torch.jit.script(Template(M=1, cutoff=0.2, out_size=21, var=[6,5], stride=1, device=device))
+        self.template = torch.jit.script(Template(M=1, cutoff=0.2, out_size=21, var=[5,5], stride=1, device=device))
+        # self.template = Template(M=1, cutoff=0.2, out_size=21, var=[5,5], stride=1, device=device)
+
         
         
         # Spatial attention module
@@ -195,6 +203,12 @@ class SiameseAttentionNetwork(nn.Module):
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, num_classes)
         
+    def multisoftmax(self, x, num_temps=4):
+        att = []
+        for x_ in x.chunk(num_temps, dim=1):
+            att.append(F.softmax(x_, dim=1))
+        return torch.cat(att, dim=1)
+
 
     def forward(self, x1, x2):
         # Forward pass through base network
@@ -203,14 +217,16 @@ class SiameseAttentionNetwork(nn.Module):
 
         local_loss1 = local_loss2 = torch.zeros([out1.size(0)]).to(device)
         if self.mask:
-            out1, obs_mask, local_loss1 = self.template(out1, train=True)
-            out2, obs_mask, local_loss2 = self.template(out2, train=True)
+            out1, obs_mask, local_loss1, crop_out1 = self.template(out1, train=True)
+            out2, obs_mask, local_loss2, crop_out2 = self.template(out2, train=True)
 
         # Compute attention weights
-        att1 = self.attention_fc(out1.view(*out1.shape[:2], -1))
-        att2 = self.attention_fc(out2.view(*out2.shape[:2], -1))
+        att1 = self.attention_fc(crop_out1.view(*crop_out1.shape[:2], -1))
+        att2 = self.attention_fc(crop_out2.view(*crop_out2.shape[:2], -1))
         att1 = F.softmax(att1, dim=1)
         att2 = F.softmax(att2, dim=1)
+        # att1 = self.multisoftmax(att1)
+        # att2 = self.multisoftmax(att2)
 
         out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
         out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
@@ -234,10 +250,10 @@ class SiameseAttentionNetwork(nn.Module):
         with torch.no_grad():
             out1 = self.base_network(x)
             
-            out1, obs_mask = self.template.get_masked_output(out1)
+            out1, obs_mask, crop_out1 = self.template.get_masked_output(out1)
 
         # Compute attention weights
-            att1 = self.attention_fc(out1.view(*out1.shape[:2], -1))
+            att1 = self.attention_fc(crop_out1.view(*crop_out1.shape[:2], -1))
             att1 = F.softmax(att1, dim=1)
 
 
@@ -340,12 +356,10 @@ class Args:
     """train every"""
     template_lr: float = 1e-4
     '''learning rate'''
-    template_epochs: int = 2
+    template_epochs: int = 1
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
-    start_normalizing: int = 5
-    """When to start normalizing the masked input. This is to """
 
     # to be filled in runtime
     batch_size: int = 0
