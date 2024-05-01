@@ -172,7 +172,8 @@ class Template(nn.Module):
         x, obs_mask, crop_obs_mask = self.get_masked_output(x)  # Get masked output based on the current mixin_factor
         if train:
             # If training, also compute the local loss
-            loss_1 = self.compute_local_loss(x)
+            # loss_1 = self.compute_local_loss(x)
+            loss_1 = torch.zeros([x.size(0)]).to(device)
             return x, obs_mask, loss_1, crop_obs_mask  # Return the masked input and the computed loss
         return x, obs_mask, crop_obs_mask # For inference, just return the masked input
 
@@ -223,10 +224,10 @@ class SiameseAttentionNetwork(nn.Module):
         # Compute attention weights
         att1 = self.attention_fc(crop_out1.view(*crop_out1.shape[:2], -1))
         att2 = self.attention_fc(crop_out2.view(*crop_out2.shape[:2], -1))
-        att1 = F.softmax(att1, dim=1)
-        att2 = F.softmax(att2, dim=1)
-        # att1 = self.multisoftmax(att1)
-        # att2 = self.multisoftmax(att2)
+        # att1 = F.softmax(att1, dim=1)
+        # att2 = F.softmax(att2, dim=1)
+        att1 = self.multisoftmax(att1)
+        att2 = self.multisoftmax(att2)
 
         out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
         out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
