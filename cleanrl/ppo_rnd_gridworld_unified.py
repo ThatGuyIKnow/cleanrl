@@ -173,7 +173,7 @@ class Template(nn.Module):
         if train:
             # If training, also compute the local loss
             # loss_1 = self.compute_local_loss(x)
-            loss_1 = torch.zeros([x.size(0)]).to(device)
+            loss_1 = torch.zeros([x.size(0)]).to(self.device)
             return x, obs_mask, loss_1, crop_obs_mask  # Return the masked input and the computed loss
         return x, obs_mask, crop_obs_mask # For inference, just return the masked input
 
