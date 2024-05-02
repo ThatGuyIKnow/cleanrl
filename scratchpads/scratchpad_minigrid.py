@@ -28,8 +28,7 @@ class MultiSubprocVecEnv(SubprocVecEnv):
 if __name__ == "__main__":
     num_envs = 16
     no_proc = 1
-    e = gym.make('Visual/MultiRoomS10N6-Gridworld-v0', cell_size=8, seed=1, num_envs=num_envs, render_mode='human', fixed=True, camera_mode = 'room_centric')
-    e = NoisyGridworldWrapper(e)
+    e = gym.make('Visual/DoorKey5x5-Gridworld-v0', cell_size=8, seed=1, num_envs=num_envs, render_mode='human', fixed=True, camera_mode = 'room_centric')
     e = GridworldResizeObservation(e, (84, 84))
     e.reset()
 
@@ -39,7 +38,6 @@ if __name__ == "__main__":
         a = np.concatenate([e.action_space.sample(), ] * no_proc)
         observation, reward, done, truncated, info = e.step(a)
         e.render()
-        time.sleep(0.2)
     end_time = dt.datetime.now()
 
     print(f"Time for {no_proc*num_envs*step_count} steps: {end_time - start_time}. SPS: {no_proc*num_envs*step_count/(end_time-start_time).total_seconds()}")

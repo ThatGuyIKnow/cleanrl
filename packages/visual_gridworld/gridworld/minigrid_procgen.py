@@ -246,8 +246,9 @@ class DoorKeyGridworld(GridWorldGeneration):
         # Add dividing wall and door
         grid[wall_poss,1:-1] = CellType.WALL.value
         grid[wall_poss,door_poss] = CellType.KEY_DOOR.value
-        room_map = np.ones_like(grid)
-        room_map[wall_poss:] = 1
+        room_map = np.zeros_like(grid) - 1
+        room_map[:wall_poss] = 0
+        room_map[wall_poss+1:] = 1
         # Add goal
         grid[-2,-2] = CellType.GOAL.value
 
@@ -260,7 +261,7 @@ class DoorKeyGridworld(GridWorldGeneration):
         grid[key_x,key_y] = CellType.KEY.value
         room_conf = np.zeros([2, 3, 2], dtype=np.int32)
         room_conf[0] = np.array([[0, wall_poss+1],[0, h],[w, h]])
-        room_conf[1] = np.array([[wall_poss, 0],[0, h],[w, h]])
+        room_conf[1] = np.array([[wall_poss, w],[0, h],[w, h]])
 
         return grid, player_pos, player_direction, room_map, room_conf
 
