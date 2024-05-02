@@ -960,7 +960,9 @@ class NoisyGridworldWrapper(gymnasium.ObservationWrapper):
         self.single_action_space = self.env.single_action_space
         self.get_player_position = self.env.get_player_position
         self.get_grid = self.env.get_grid
-        self.screen = self.env.screen
+        
+        if hasattr(self.env, 'screen'):
+            self.screen = self.env.screen
         
     def observation(self, observation):
         """Returns a modified observation.
@@ -1225,8 +1227,10 @@ class BlockyBackgroundGridworldWrapper(gymnasium.ObservationWrapper):
         self.single_action_space = self.env.single_action_space
         self.get_player_position = self.env.get_player_position
         self.get_grid = self.env.get_grid
-        self.screen = self.env.screen
-
+        
+        if hasattr(self.env, 'screen'):
+            self.screen = self.env.screen
+            
     def get_colors(self, colors):
         rgb_colors = [c.hsv_to_rgb(i/float(colors), 1., 1.) for i in range(colors)]
         return np.array(rgb_colors, dtype=np.uint8) * 255
