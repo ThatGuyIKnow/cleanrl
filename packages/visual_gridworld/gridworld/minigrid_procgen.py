@@ -223,6 +223,7 @@ class DoorKeyGridworld(GridWorldGeneration):
         self.height = height
 
         self.mode = mode
+        self.max_room_size = max(self.width, self.height)
 
     def generate_grid_world(self):
         if self.fixed:
@@ -1230,7 +1231,7 @@ class BlockyBackgroundGridworldWrapper(gymnasium.ObservationWrapper):
         
         if hasattr(self.env, 'screen'):
             self.screen = self.env.screen
-            
+
     def get_colors(self, colors):
         rgb_colors = [c.hsv_to_rgb(i/float(colors), 1., 1.) for i in range(colors)]
         return np.array(rgb_colors, dtype=np.uint8) * 255
