@@ -586,7 +586,7 @@ if __name__ == "__main__":
     early_stopping_counter = args.total_timesteps
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     assert (s := args.template_training_schedule) is None or len(s[0]) == len(s[1])
-    # args.template_training_schedule = tuple([[50,], [0,]]) 
+    args.template_training_schedule = tuple([[15000 ,], [0,]]) 
     args.template_training_schedule[0].insert(0, -1)
     args.template_training_schedule[1].insert(0, args.template_epochs)
     args.template_training_schedule[0].append(np.inf)
