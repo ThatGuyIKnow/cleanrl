@@ -503,13 +503,12 @@ class TemplateMasking(nn.Module):
         return F.interpolate(m, self.shape[-2:]) / m.max()
     
     def reg_loss(self):
-        l2_crit = nn.MSELoss(size_average=False)
         reg_loss = 0
         for param in self.base_network.parameters():
-            reg_loss += l2_crit(param)
+            reg_loss += torch.norm(param, 2)
         
         for param in self.net.attention_fc.parameters():
-            reg_loss += l2_crit(param)
+            reg_loss += torch.norm(param, 2)
             
         factor = 0.0005
         return reg_loss * factor
