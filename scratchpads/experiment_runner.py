@@ -16,7 +16,7 @@ class Args:
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
-    devices: tuple[int] = (1, 2, 3)
+    devices: tuple[int] = (0, 1, 2, 3)
     """avaliable device ids"""
     include_random: bool = False
     """avaliable device ids"""
@@ -32,7 +32,7 @@ class Args:
     """avaiable"""
     seed: int = 1
     """seed"""
-    max_workers: int = 3
+    max_workers: int = 4
     """Max gpu workeres"""
 
 args = tyro.cli(Args)
