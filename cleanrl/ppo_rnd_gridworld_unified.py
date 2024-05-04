@@ -130,7 +130,7 @@ class Template(nn.Module):
             self.p_T = torch.FloatTensor(p_T).requires_grad_(False).to(self.device)
         
     def get_mask_from_indices(self, indices: Tensor) -> Tensor:
-        # Select templates for each index found by max pooling
+        # Select templates for each index found by max pooling  
         selected_templates = torch.stack([self.templates_f[(i/(self.stride**2)).long()] for i in indices], dim=0)
         # Apply the selected templates to the input and return the masked input and the templates
         mask = (selected_templates / selected_templates.max())
@@ -259,7 +259,7 @@ class Args:
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
-    fixed: bool = False
+    fixed: bool = True
     """Fix the gridworld to a single world"""
     torch_deterministic: bool = True
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
@@ -283,7 +283,7 @@ class Args:
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
-    camera_mode: Literal['full', 'agent_centric', 'room_centric'] = "full"
+    camera_mode: Literal['full', 'agent_centric', 'room_centric'] = "room_centric"
     """camera mode. What does the camera follow"""
     agent_view: Tuple[int, int] = (2, 2)
     """Number of tiles the agent can see on either side in agent_centric view"""
@@ -502,6 +502,18 @@ class TemplateMasking(nn.Module):
         m = (m * att[...,None]).sum(1, keepdim=True)
         return F.interpolate(m, self.shape[-2:]) / m.max()
     
+    def reg_loss(self):
+        l2_crit = nn.MSELoss(size_average=False)
+        reg_loss = 0
+        for param in self.base_network.parameters():
+            reg_loss += l2_crit(param)
+        
+        for param in self.net.attention_fc.parameters():
+            reg_loss += l2_crit(param)
+            
+        factor = 0.0005
+        return reg_loss * factor
+        
 class RNDModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -931,7 +943,6 @@ if __name__ == "__main__":
             b_dones = dones.swapdims(0, 1).reshape(-1).cpu().bool().numpy()
             running_accuracy = []
             running_action_loss = []
-            running_local_loss = []
             running_total_loss = []
             red_found = []
             
@@ -948,23 +959,20 @@ if __name__ == "__main__":
                     
                     if len(mb_mask_inds) == 0:
                         continue
-                    b_act_pred, local_loss = template(b_obs[mb_mask_inds],
+                    b_act_pred, _ = template(b_obs[mb_mask_inds],
                                                         b_obs[mb_mask_inds + 1])
-                    local_loss = local_loss.mean()
                     b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
                     action_loss = mask_criterion(b_act_pred, b_act)
-                    total_loss = action_loss # + local_loss
+                    total_loss = action_loss + template.reg_loss()
                     
                     running_accuracy += [multiclass_accuracy(b_act_pred.argmax(dim=-1), b_act.argmax(dim=-1), num_classes=int(action_n)).cpu(),]
                     running_action_loss += [action_loss.item(), ]
-                    running_local_loss += [local_loss.item(), ]
                     running_total_loss += [total_loss.item(), ]
 
                     mask_optimizer.zero_grad()
                     total_loss.backward()
                     mask_optimizer.step()
             writer.add_scalar("losses/action_loss", np.array(running_action_loss).mean(), global_step)
-            writer.add_scalar("losses/local_mask_loss", np.array(running_local_loss).mean(), global_step)
             writer.add_scalar("losses/total_action_loss", np.array(running_total_loss).mean(), global_step)
             writer.add_scalar("losses/action_accuracy", np.array(running_accuracy).mean(), global_step)
 

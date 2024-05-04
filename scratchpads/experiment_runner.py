@@ -30,7 +30,7 @@ class Args:
     """avaiable"""
     include_blocky: bool = True
     """avaiable"""
-    seed: int = 433
+    seed: int = 1
     """seed"""
     max_workers: int = 3
     """Max gpu workeres"""
