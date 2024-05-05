@@ -108,7 +108,7 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py --ext-coef 1.0 --ent-coef 0.005 --int-coef 0.0001--learning-rate 0.00005 --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py --ext-coef 1.0 --ent-coef 0.005 --int-coef 0.0001 --learning-rate 0.00005 --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
