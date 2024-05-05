@@ -32,7 +32,7 @@ class Args:
     """avaiable"""
     seed: int = 1
     """seed"""
-    max_workers: int = 4
+    max_workers: int = 4    
     """Max gpu workeres"""
 
 args = tyro.cli(Args)
@@ -41,7 +41,7 @@ env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
     ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 ', 'doorkey8x8'),
-    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 30000000', 'doorkey16x16'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 10000000', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
     ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000', 'multiroomS5N4'),
     ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 3000000', 'multiroomS10N6'),
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py --ext-coef 1.0 --ent-coef 0.005 --learning-rate 0.00005 --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py --ext-coef 1.0 --ent-coef 0.005 --int-coef 0.0001--learning-rate 0.00005 --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 

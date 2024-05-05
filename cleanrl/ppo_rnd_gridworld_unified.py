@@ -345,7 +345,7 @@ class Args:
     """patience for early stopping"""
 
     # masking
-    template_size: int = 6
+    template_size: int = 4
     """masking template cell size"""
     alpha: float = 0.0
     """transparancy"""
@@ -695,24 +695,24 @@ if __name__ == "__main__":
     next_done = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
 
-    print("Start to initialize observation normalization parameter.....")
-    next_ob = []
-    masks = []
-    for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-        acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
-        s, r, d, t, _ = envs.step(acs)
-        next_ob += list(s)
-        with torch.no_grad():
-            m = template.get_mask(torch.from_numpy(s).to(device)).cpu().numpy()
-        masks += list(m)
+    # print("Start to initialize observation normalization parameter.....")
+    # next_ob = []
+    # masks = []
+    # for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+    #     acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
+    #     s, r, d, t, _ = envs.step(acs)
+    #     next_ob += list(s)
+    #     with torch.no_grad():
+    #         m = template.get_mask(torch.from_numpy(s).to(device)).cpu().numpy()
+    #     masks += list(m)
 
-        if len(next_ob) % (args.num_steps * args.num_envs) == 0:
-            next_ob = np.stack(next_ob)
-            mask = np.stack(masks)
-            obs_rms.update(next_ob * mask)
-            next_ob = []
-            masks = []
-    print("End to initialize...")
+    #     if len(next_ob) % (args.num_steps * args.num_envs) == 0:
+    #         next_ob = np.stack(next_ob)
+    #         mask = np.stack(masks)
+    #         obs_rms.update(next_ob * mask)
+    #         next_ob = []
+    #         masks = []
+    # print("End to initialize...")
     start_time = time.time()
 
     for update in range(1, num_updates + 1):
@@ -755,6 +755,7 @@ if __name__ == "__main__":
                     / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
                 ).clip(-5, 5)
             ).float()
+            rnd_next_obs = masked_next_obs
             target_next_feature = rnd_model.target(rnd_next_obs)
             predict_next_feature = rnd_model.predictor(rnd_next_obs)
             curiosity_rewards[step] = ((target_next_feature - predict_next_feature).pow(2).sum(1) / 2).data
@@ -861,6 +862,7 @@ if __name__ == "__main__":
                 / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
             ).clip(-5, 5)
         ).float()
+        rnd_next_obs = masked_b_obs
 
         clipfracs = []
         for epoch in range(args.update_epochs):
