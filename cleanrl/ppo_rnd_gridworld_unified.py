@@ -972,7 +972,7 @@ if __name__ == "__main__":
             writer.add_scalar("losses/action_accuracy", np.array(running_accuracy).mean(), global_step)
 
             b_obs_subset = b_obs[b_inds[:16]]
-            if args.track and len(b_obs_subset) > 0:
+            if args.track and len(b_obs_subset) > 0 and update % args.template_train_every * 16:
                 # Assuming b_obs_subset is a tensor
                 _, raw_m, att = template.net.get_mask(b_obs_subset)
                 m = (raw_m * att[...,None]).sum(1, keepdim=True)
