@@ -26,7 +26,7 @@ class MultiSubprocVecEnv(SubprocVecEnv):
         return super().step(actions)
 
 if __name__ == "__main__":
-    num_envs = 16
+    num_envs = 64
     no_proc = 1
     e = gym.make('Visual/DoorKey8x8-Gridworld-v0', cell_size=8, seed=1, num_envs=num_envs, render_mode='human', fixed=True, camera_mode = 'room_centric')
     e = GridworldResizeObservation(e, (84, 84))

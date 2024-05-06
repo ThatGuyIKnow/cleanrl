@@ -683,7 +683,7 @@ class Gridworld(gymnasium.Env):
                 room_rgb[x:x+self.cell_size,y:y+self.cell_size] *= player_mask
                 room_rgb[x:x+self.cell_size,y:y+self.cell_size] += player_sprite
                 if self.show_key_icon and self.has_key[i]:
-                    room_rgb[i, 0:5,0:5] = np.array([255, 255, 0])
+                    room_rgb[0:5,0:5] = np.array([255, 255, 0])
 
             rw, rh = room_rgb.shape[-3:-1]
             offset_x, offset_y = (mw-rw)//2, (mh-rh)//2,
@@ -1384,7 +1384,7 @@ class GridworldResizeObservation(gymnasium.ObservationWrapper, gymnasium.utils.R
         obs = self.env.rgb_render()
         obs = self.observation(obs)
         screen = np.zeros((w * 4, h * 4, 3), dtype=np.uint8)
-        for index, o in enumerate(obs):
+        for index, o in enumerate(obs[:16]):
             i = (index % 4)*w
             j = index // 4*h
             screen[i:i+w,j:j+h] = o
