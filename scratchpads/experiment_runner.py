@@ -115,13 +115,13 @@ if __name__ == '__main__':
     env_ids, env_tags = transpose(env_ids_and_tags)
     all_options = []
     env_bg_tags = ['normal', ]
-    env_options = ['None --int-coef 1.0 --update_epochs 8', ]
+    env_options = ['None --update_epochs 8', ]
     if args.include_noisy:
         env_bg_tags.extend(['noisy', ])
-        env_options.extend(['noisy --int-coef 0.01 --update_epochs 8', ])
+        env_options.extend(['--background_noise noisy --update_epochs 8', ])
     if args.include_blocky:
         env_bg_tags.extend(['blocky', ])
-        env_options.extend(['blocky --int-coef 0.01 --update_epochs 8', ])
+        env_options.extend(['--background_noise blocky --update_epochs 8', ])
     
     if args.include_camera_modes:
         env_bg_tags.extend(['full', 'agent_centric', 'room_centric', ])
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     
 
     all_options.append(Option('env_id', env_tags, env_ids, '--env-id'))
-    all_options.append(Option('background_noise', env_bg_tags, env_options, '--background_noise'))
+    all_options.append(Option('mods', env_bg_tags, env_options, ''))
     
     if args.include_random:
         all_options.append(Option('include_fixed', ['random','fixed_seed'], ['--no-fixed', '--fixed'], ''))
