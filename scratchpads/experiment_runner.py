@@ -115,7 +115,7 @@ if __name__ == '__main__':
     env_ids, env_tags = transpose(env_ids_and_tags)
     all_options = []
     env_bg_tags = ['normal', ]
-    env_options = ['None --update_epochs 8', ]
+    env_options = ['--update_epochs 8', ]
     if args.include_noisy:
         env_bg_tags.extend(['noisy', ])
         env_options.extend(['--background_noise noisy --update_epochs 8', ])
