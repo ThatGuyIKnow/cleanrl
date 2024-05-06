@@ -662,7 +662,7 @@ class Gridworld(gymnasium.Env):
     def get_room(self, obs, mask=False):
         mw, mh = (self.generation.max_room_size * self.cell_size, ) * 2
         divided_rgb_obs = np.zeros([self.num_envs, mw, mh, obs.shape[-1]], dtype=np.uint8)
-        for i in range(len(obs)):
+        for i in range(self.num_envs):
             curr_room = self.current_room[i].copy()
             x, y = self.player_positions[i].copy()
             room_conf = self.room_confs[i][curr_room].copy()
