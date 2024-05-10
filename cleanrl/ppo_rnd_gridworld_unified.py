@@ -353,7 +353,7 @@ class Args:
     """start masking at step"""
     template_batch: int = 64
     """train batches"""
-    template_train_every: int = 1
+    template_train_every: int = 8
     """train every"""
     template_lr: float = 1e-4
     '''learning rate'''
@@ -506,7 +506,7 @@ class TemplateMasking(nn.Module):
         reg_loss = 0
         for param in self.base_network.parameters():
             reg_loss += torch.norm(param, 1)
-        factor = 0.0005
+        factor = 0.001
         return reg_loss * factor
         
 class RNDModel(nn.Module):
