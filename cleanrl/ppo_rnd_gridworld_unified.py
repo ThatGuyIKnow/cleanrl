@@ -337,7 +337,7 @@ class Args:
     """coefficient of intrinsic reward"""
     int_gamma: float = 0.99
     """Intrinsic reward discount rate"""
-    num_iterations_obs_norm_init: int = 50
+    num_iterations_obs_norm_init: int = 0#50
     """number of iterations to initialize the observations normalization parameters"""
 
     # Early stopping arguments
