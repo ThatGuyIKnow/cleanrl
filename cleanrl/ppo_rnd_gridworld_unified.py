@@ -363,7 +363,7 @@ class Args:
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
-    masking_pretraining_epochs = 10
+    masking_pretraining_epochs = 20
     """pretraining epochs for masking"""
 
     # to be filled in runtime
