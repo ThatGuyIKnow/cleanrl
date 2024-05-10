@@ -201,28 +201,25 @@ class SiameseAttentionNetwork(nn.Module):
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, num_classes)
         
-
-    def forward(self, x1, x2):
+    def prong(self, x, train=False):
         # Forward pass through base network
-        out1 = self.base_network(x1)
-        out2 = self.base_network(x2)
-
-        local_loss1 = local_loss2 = torch.zeros([out1.size(0)]).to(device)
-        if self.mask:
-            out1, obs_mask, local_loss1, crop_out1 = self.template(out1, train=True)
-            out2, obs_mask, local_loss2, crop_out2 = self.template(out2, train=True)
+        out1 = self.base_network(x)
+        out1, obs_mask, local_loss1, crop_out1 = self.template(out1, train=True)
 
         # Compute attention weights
         att1 = self.attention_fc(crop_out1.view(*crop_out1.shape[:2], -1))
-        att2 = self.attention_fc(crop_out2.view(*crop_out2.shape[:2], -1))
-        att1 = F.dropout(att1, 0.25)
-        att2 = F.dropout(att2, 0.25)
+        if train:
+            att1 = F.dropout(att1, 0.25)
         att1 = F.softmax(att1, dim=1)
-        att2 = F.softmax(att2, dim=1)
-
         out1 = F.adaptive_max_pool2d(out1, 1).view(out1.size(0), -1)
-        out2 = F.adaptive_max_pool2d(out2, 1).view(out2.size(0), -1)
-        
+        return out1, att1, obs_mask
+
+    def forward(self, x1, x2):
+        # Forward pass through base network
+        out1, att1, _ = self.prong(x1, train=True)
+        out2, att2, _ = self.prong(x2, train=True)
+
+        local_loss1 = local_loss2 = torch.zeros([out1.size(0)]).to(device)
 
         out1 = out1 * att1.squeeze(2)
         out2 = out2 * att2.squeeze(2)
@@ -240,16 +237,9 @@ class SiameseAttentionNetwork(nn.Module):
     def get_mask(self, x):
         # Forward pass through base network
         with torch.no_grad():
-            out1 = self.base_network(x)
-            
-            out1, obs_mask, crop_out1 = self.template.get_masked_output(out1)
+            out1, att1, obs_mask = self.prong(x)
 
-        # Compute attention weights
-            att1 = self.attention_fc(crop_out1.view(*crop_out1.shape[:2], -1))
-            att1 = F.softmax(att1, dim=1)
-
-
-        return out1, obs_mask, att1
+        return obs_mask
         
 
 @dataclass
@@ -501,8 +491,8 @@ class TemplateMasking(nn.Module):
         return self.net(x1  / 255.0, x2 / 255.0)
 
     def get_mask(self, x):
-        _, m, att = self.net.get_mask(x / 255.0)
-        m = (m * att[...,None]).sum(1, keepdim=True)
+        m = self.net.get_mask(x / 255.0)
+        m = m.sum(1, keepdim=True)
         return F.interpolate(m, self.shape[-2:]) #/ m.max()
     
     def reg_loss(self):
