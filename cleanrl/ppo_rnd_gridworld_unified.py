@@ -337,7 +337,7 @@ class Args:
     """coefficient of intrinsic reward"""
     int_gamma: float = 0.99
     """Intrinsic reward discount rate"""
-    num_iterations_obs_norm_init: int = 0#50
+    num_iterations_obs_norm_init: int = 50
     """number of iterations to initialize the observations normalization parameters"""
 
     # Early stopping arguments
@@ -363,6 +363,8 @@ class Args:
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
+    masking_pretraining_epochs = 10
+    """pretraining epochs for masking"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -572,6 +574,23 @@ class RewardForwardFilter:
         else:
             self.rewems = self.rewems * self.gamma + rews
         return self.rewems
+    
+# Assuming you have a function to gather samples from the environment
+def gather_samples(envs, batch_size):
+    obs_batch, next_obs_batch, action_batch = [], [], []
+    obs, reward, done, _, _ = envs.step(envs.action_space.sample())
+    for _ in range(batch_size):
+        action = envs.action_space.sample() 
+        next_obs, reward, done, _, _ = envs.step(action)
+        obs_batch.append(obs)
+        next_obs_batch.append(next_obs)
+        action_batch.append(action)
+        obs = next_obs
+    return (
+        torch.tensor(np.array(obs_batch)),
+        torch.tensor(np.array(next_obs_batch)),
+        torch.tensor(np.array(action_batch))
+    )
 
 
 if __name__ == "__main__":
@@ -693,6 +712,20 @@ if __name__ == "__main__":
     next_done = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
 
+    print("Start pretraining masking/template")
+
+    for _ in range(args.masking_pretraining_epochs):
+        b_obs, b_next_obs, b_actions = gather_samples(envs, args.template_batch)
+        for start, end in pairwise(range(0, len(b_obs), args.template_batch)):
+            b_act_pred, _ = template(b_obs[start:end], b_next_obs[start:end])
+            b_act = F.one_hot(b_actions[start:end].long(), action_n).float()
+            action_loss = mask_criterion(b_act_pred, b_act)
+            total_loss = action_loss + template.reg_loss()
+
+            mask_optimizer.zero_grad()
+            total_loss.backward()
+            mask_optimizer.step()
+
     print("Start to initialize observation normalization parameter.....")
     next_ob = []
     masks = []
@@ -710,6 +743,8 @@ if __name__ == "__main__":
             obs_rms.update(next_ob * mask)
             next_ob = []
             masks = []
+
+
     print("End to initialize...")
     start_time = time.time()
 
