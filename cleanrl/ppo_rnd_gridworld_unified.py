@@ -144,6 +144,7 @@ class Template(nn.Module):
         
         # Interpolate between the identity mask and the filtered templates based on mixin_factor
         mask = self.get_mask_from_indices(indices)
+        mask /= mask.max()
         # templates = torch.lerp(self.identity_mask, self.templates_f, self._mixin_factor)
         x_masked = x * mask
         x_i = indices % self.out_size
