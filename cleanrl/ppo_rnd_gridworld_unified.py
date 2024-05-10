@@ -283,7 +283,7 @@ class Args:
     """the id of the environment"""
     env_mode: Optional[str] = None
     """Environemt mode (random or hard)"""
-    camera_mode: Literal['full', 'agent_centric', 'room_centric'] = "room_centric"
+    camera_mode: Literal['full', 'agent_centric', 'room_centric'] = "full"
     """camera mode. What does the camera follow"""
     agent_view: Tuple[int, int] = (2, 2)
     """Number of tiles the agent can see on either side in agent_centric view"""
