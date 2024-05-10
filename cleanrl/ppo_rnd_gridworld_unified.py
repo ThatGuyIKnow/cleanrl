@@ -506,7 +506,7 @@ class TemplateMasking(nn.Module):
         reg_loss = 0
         for param in self.base_network.parameters():
             reg_loss += torch.norm(param, 2)
-        factor = 0.001
+        factor = 0.0
         return reg_loss * factor
         
 class RNDModel(nn.Module):
