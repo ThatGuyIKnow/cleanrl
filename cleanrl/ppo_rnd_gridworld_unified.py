@@ -194,11 +194,7 @@ class SiameseAttentionNetwork(nn.Module):
         self.template_counts = attention_hidden_size
         self.template = torch.jit.script(Template(M=1, cutoff=0.2, out_size=21, var=[5,5], stride=1, device=device))
         # self.template = Template(M=1, cutoff=0.2, out_size=21, var=[5,5], stride=1, device=device)
-
         
-        
-        # Spatial attention module
-        self.spatial_attention_conv = nn.Conv2d(1, 1, kernel_size=3, padding=1)
         
         # Classifier
         self.fc1 = nn.LazyLinear(128)
@@ -507,7 +503,7 @@ class TemplateMasking(nn.Module):
     def get_mask(self, x):
         _, m, att = self.net.get_mask(x / 255.0)
         m = (m * att[...,None]).sum(1, keepdim=True)
-        return F.interpolate(m, self.shape[-2:]) / m.max()
+        return F.interpolate(m, self.shape[-2:]) #/ m.max()
     
     def reg_loss(self):
         reg_loss = 0
