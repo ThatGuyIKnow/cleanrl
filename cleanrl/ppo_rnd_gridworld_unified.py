@@ -363,7 +363,9 @@ class Args:
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
-    masking_pretraining_epochs = 20
+    masking_pretraining_epochs = 10
+    """pretraining epochs for masking"""
+    masking_pretraining_steps = 25
     """pretraining epochs for masking"""
 
     # to be filled in runtime
@@ -715,16 +717,17 @@ if __name__ == "__main__":
     print("Start pretraining masking/template")
 
     for _ in range(args.masking_pretraining_epochs):
-        b_obs, b_next_obs, b_actions = gather_samples(envs, args.template_batch)
-        for start, end in pairwise(range(0, len(b_obs), args.template_batch)):
-            b_act_pred, _ = template(b_obs[start:end], b_next_obs[start:end])
-            b_act = F.one_hot(b_actions[start:end].long(), action_n).float()
-            action_loss = mask_criterion(b_act_pred, b_act)
-            total_loss = action_loss + template.reg_loss()
+        for _ in range(args.masking_pretraining_steps):
+            b_obs, b_next_obs, b_actions = gather_samples(envs, args.template_batch)
+            for start, end in pairwise(range(0, len(b_obs), args.template_batch)):
+                b_act_pred, _ = template(b_obs[start:end], b_next_obs[start:end])
+                b_act = F.one_hot(b_actions[start:end].long(), action_n).float()
+                action_loss = mask_criterion(b_act_pred, b_act)
+                total_loss = action_loss + template.reg_loss()
 
-            mask_optimizer.zero_grad()
-            total_loss.backward()
-            mask_optimizer.step()
+                mask_optimizer.zero_grad()
+                total_loss.backward()
+                mask_optimizer.step()
 
     print("Start to initialize observation normalization parameter.....")
     next_ob = []
