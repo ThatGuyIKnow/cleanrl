@@ -359,7 +359,7 @@ class Args:
     """train every"""
     template_lr: float = 1e-4
     '''learning rate'''
-    template_epochs: int = 2
+    template_epochs: int = 0
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
