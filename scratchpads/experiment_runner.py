@@ -149,7 +149,7 @@ if __name__ == '__main__':
                                   [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
-    int_coef = [1e-3, 5e-4, 1e-4]
+    int_coef = [1e-3, 5e-4]
     all_options.append(Option('int coef', [None, ] * len(int_coef), int_coef, '--int-coef'))
 
     commands = construct_all_commands(base_cmd, all_options)
