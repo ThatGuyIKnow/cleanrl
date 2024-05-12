@@ -352,7 +352,7 @@ class Args:
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
-    masking_pretraining_epochs = 10
+    masking_pretraining_epochs = 20
     """pretraining epochs for masking"""
     masking_pretraining_steps = 50
     """pretraining epochs for masking"""
@@ -497,13 +497,6 @@ class TemplateMasking(nn.Module):
         m = m.sum(1, keepdim=True)
         return F.interpolate(m, self.shape[-2:]) #/ m.max()
     
-    def reg_loss(self):
-        reg_loss = 0
-        for param in self.base_network.parameters():
-            reg_loss += torch.norm(param, 2)
-        factor = 0.0
-        return reg_loss * factor
-        
 class RNDModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -712,7 +705,7 @@ if __name__ == "__main__":
                 b_act_pred, _ = template(b_obs[start:end], b_next_obs[start:end])
                 b_act = F.one_hot(b_actions[start:end].long(), action_n).float()
                 action_loss = mask_criterion(b_act_pred, b_act)
-                total_loss = action_loss + template.reg_loss()
+                total_loss = action_loss
 
                 mask_optimizer.zero_grad()
                 total_loss.backward()
@@ -964,6 +957,8 @@ if __name__ == "__main__":
         if update % args.template_train_every == 0:
             b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
             b_actions = actions.swapdims(0, 1).reshape(-1)
+            b_actions = F.one_hot(b_actions.long(), action_n).float()
+            b_action_weights = b_actions.mean(dim=0)
             b_dones = dones.swapdims(0, 1).reshape(-1).cpu().bool().numpy()
             running_accuracy = []
             running_action_loss = []
@@ -985,9 +980,9 @@ if __name__ == "__main__":
                         continue
                     b_act_pred, _ = template(b_obs[mb_mask_inds],
                                                         b_obs[mb_mask_inds + 1])
-                    b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
-                    action_loss = mask_criterion(b_act_pred, b_act)
-                    total_loss = action_loss + template.reg_loss()
+                    b_act = b_actions[mb_mask_inds]
+                    action_loss = F.cross_entropy(b_act_pred, b_act, weight=b_action_weights)
+                    total_loss = action_loss
                     
                     running_accuracy += [multiclass_accuracy(b_act_pred.argmax(dim=-1), b_act.argmax(dim=-1), num_classes=int(action_n)).cpu(),]
                     running_action_loss += [action_loss.item(), ]
