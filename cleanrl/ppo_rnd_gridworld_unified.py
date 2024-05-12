@@ -700,7 +700,7 @@ if __name__ == "__main__":
 
     for i in range(args.masking_pretraining_epochs):
         b_obs, b_next_obs, b_actions = gather_samples(envs, args.template_batch * args.masking_pretraining_steps)
-        for start, end in pairwise(range(0, b_obs.shape[0], args.template_batch)):
+        for start, end in pairwise(range(0, b_obs.shape[0] + 1, args.template_batch)):
             b_act_pred, _ = template(b_obs[start:end], b_next_obs[start:end])
             b_act = F.one_hot(b_actions[start:end].long(), action_n).float()
             action_loss = mask_criterion(b_act_pred, b_act)
