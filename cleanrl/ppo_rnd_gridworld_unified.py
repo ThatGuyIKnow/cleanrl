@@ -958,7 +958,7 @@ if __name__ == "__main__":
             b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
             b_actions = actions.swapdims(0, 1).reshape(-1)
             b_actions = F.one_hot(b_actions.long(), action_n).float()
-            b_action_weights = b_actions.mean(dim=0)
+            b_action_weights = 1/(1+b_actions.mean(dim=0))
             b_dones = dones.swapdims(0, 1).reshape(-1).cpu().bool().numpy()
             running_accuracy = []
             running_action_loss = []
