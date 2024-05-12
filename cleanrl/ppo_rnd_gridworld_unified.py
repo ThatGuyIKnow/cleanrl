@@ -241,7 +241,7 @@ class SiameseAttentionNetwork(nn.Module):
         if full_output:
             return out1, att1, obs_mask
         
-        return obs_mask
+        return obs_mask * att1
         
 
 @dataclass
@@ -957,8 +957,6 @@ if __name__ == "__main__":
         if update % args.template_train_every == 0:
             b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
             b_actions = actions.swapdims(0, 1).reshape(-1)
-            b_actions = F.one_hot(b_actions.long(), action_n).float()
-            b_action_weights = 1/(1+b_actions.mean(dim=0))
             b_dones = dones.swapdims(0, 1).reshape(-1).cpu().bool().numpy()
             running_accuracy = []
             running_action_loss = []
@@ -980,8 +978,8 @@ if __name__ == "__main__":
                         continue
                     b_act_pred, _ = template(b_obs[mb_mask_inds],
                                                         b_obs[mb_mask_inds + 1])
-                    b_act = b_actions[mb_mask_inds]
-                    action_loss = F.cross_entropy(b_act_pred, b_act, weight=b_action_weights)
+                    b_act = F.one_hot(b_actions[mb_mask_inds].long(), action_n).float()
+                    action_loss = mask_criterion(b_act_pred, b_act)
                     total_loss = action_loss
                     
                     running_accuracy += [multiclass_accuracy(b_act_pred.argmax(dim=-1), b_act.argmax(dim=-1), num_classes=int(action_n)).cpu(),]
