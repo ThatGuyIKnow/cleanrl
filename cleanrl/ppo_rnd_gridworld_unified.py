@@ -701,9 +701,9 @@ if __name__ == "__main__":
     for i in range(args.masking_pretraining_epochs):
         b_obs, b_next_obs, b_actions = gather_samples(envs, args.template_batch * args.masking_pretraining_steps)
 
-        b_obs = b_obs.reshape((-1,) + envs.single_observation_space.shape)
-        b_next_obs = b_next_obs.reshape((-1,) + envs.single_observation_space.shape)
-        b_actions = b_actions.reshape(-1)
+        b_obs = b_obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
+        b_next_obs = b_next_obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
+        b_actions = b_actions.swapdims(0, 1).reshape(-1)
         for start, end in pairwise(range(0, b_obs.shape[0] + 1, args.template_batch)):
             b_act_pred, _ = template(b_obs[start:end], b_next_obs[start:end])
             b_act = F.one_hot(b_actions[start:end].long(), action_n).float()
