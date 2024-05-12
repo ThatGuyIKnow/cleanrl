@@ -241,7 +241,7 @@ class SiameseAttentionNetwork(nn.Module):
         if full_output:
             return out1, att1, obs_mask
         
-        return obs_mask * att1
+        return obs_mask * att1[...,None]
         
 
 @dataclass
