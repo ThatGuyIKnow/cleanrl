@@ -571,9 +571,9 @@ def gather_samples(envs, batch_size):
         action_batch.append(action)
         obs = next_obs
     return (
-        torch.tensor(np.array(obs_batch)),
-        torch.tensor(np.array(next_obs_batch)),
-        torch.tensor(np.array(action_batch))
+        torch.tensor(np.array(obs_batch)).to(device),
+        torch.tensor(np.array(next_obs_batch)).to(device),
+        torch.tensor(np.array(action_batch)).to(device)
     )
 
 
