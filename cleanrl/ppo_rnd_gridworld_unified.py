@@ -234,11 +234,13 @@ class SiameseAttentionNetwork(nn.Module):
 
         return out, 0.5*(local_loss1 + local_loss2)
 
-    def get_mask(self, x):
+    def get_mask(self, x, full_output=False):
         # Forward pass through base network
         with torch.no_grad():
             out1, att1, obs_mask = self.prong(x)
-
+        if full_output:
+            return out1, att1, obs_mask
+        
         return obs_mask
         
 
@@ -1001,7 +1003,7 @@ if __name__ == "__main__":
             b_obs_subset = b_obs[b_inds[:16]]
             if args.track and len(b_obs_subset) > 0:
                 # Assuming b_obs_subset is a tensor
-                _, raw_m, att = template.net.get_mask(b_obs_subset)
+                _, raw_m, att = template.net.get_mask(b_obs_subset, full_output=True)
                 m = (raw_m * att[...,None]).sum(1, keepdim=True)
                 m = F.interpolate(m, obs_shape[-2:])
                 raw_m = raw_m.mean(dim=1, keepdim=True)
