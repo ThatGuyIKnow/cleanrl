@@ -328,6 +328,8 @@ class Args:
     """Intrinsic reward discount rate"""
     num_iterations_obs_norm_init: int = 50
     """number of iterations to initialize the observations normalization parameters"""
+    use_mean: bool = True
+    """whether to use the mean variance normalize"""
 
     # Early stopping arguments
     early_stopping_threshold: float = None
@@ -721,6 +723,8 @@ if __name__ == "__main__":
     next_ob = []
     masks = []
     for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
+        if args.use_mean:
+            break
         acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
         s, r, d, t, _ = envs.step(acs)
         next_ob += list(s)
@@ -773,12 +777,15 @@ if __name__ == "__main__":
             mask = template.get_mask(next_obs.to(device))
             # mask = rnd_model.make_template(next_player_pos)
             masked_next_obs = next_obs * mask
-            rnd_next_obs = (
-                (
-                    (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
-                    / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
-                ).clip(-5, 5)
-            ).float()
+            if args.use_mean:
+                rnd_next_obs = (
+                    (
+                        (masked_next_obs - torch.from_numpy(obs_rms.mean).to(device))
+                        / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
+                    ).clip(-5, 5)
+                ).float()
+            else:
+                rnd_next_obs = masked_next_obs
             target_next_feature = rnd_model.target(rnd_next_obs)
             predict_next_feature = rnd_model.predictor(rnd_next_obs)
             curiosity_rewards[step] = ((target_next_feature - predict_next_feature).pow(2).sum(1) / 2).data
@@ -878,14 +885,15 @@ if __name__ == "__main__":
 
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
-
-        rnd_next_obs = (
-            (
-                (masked_b_obs - torch.from_numpy(obs_rms.mean).to(device))
-                / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
-            ).clip(-5, 5)
-        ).float()
-
+        if args.use_mean:
+            rnd_next_obs = (
+                (
+                    (masked_b_obs - torch.from_numpy(obs_rms.mean).to(device))
+                    / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
+                ).clip(-5, 5)
+            ).float()
+        else:
+            rnd_next_obs = masked_b_obs
         clipfracs = []
         for epoch in range(args.update_epochs):
             np.random.shuffle(b_inds)
