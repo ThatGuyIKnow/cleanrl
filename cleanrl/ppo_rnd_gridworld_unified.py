@@ -205,7 +205,7 @@ class SiameseAttentionNetwork(nn.Module):
         # Forward pass through base network
         out1 = self.base_network(x)
         out1, obs_mask, local_loss1, crop_out1 = self.template(out1, train=True)
-
+    
         # Compute attention weights
         att1 = self.attention_fc(crop_out1.view(*crop_out1.shape[:2], -1))
         if train:
@@ -497,6 +497,8 @@ class TemplateMasking(nn.Module):
     def get_mask(self, x):
         m = self.net.get_mask(x / 255.0)
         m = m.sum(1, keepdim=True)
+        norm = m.view(m.size(0), -1).max(dim=1)[0]
+        m /= norm.view(-1, 1, 1, 1)
         return F.interpolate(m, self.shape[-2:]) #/ m.max()
     
 class RNDModel(nn.Module):
@@ -773,9 +775,7 @@ if __name__ == "__main__":
             done = done | truncated
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
-            # next_player_pos = torch.from_numpy(envs.get_player_position()).to(device)
             mask = template.get_mask(next_obs.to(device))
-            # mask = rnd_model.make_template(next_player_pos)
             masked_next_obs = next_obs * mask
             if args.use_mean:
                 rnd_next_obs = (
