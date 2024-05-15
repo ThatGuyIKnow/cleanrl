@@ -40,11 +40,11 @@ args = tyro.cli(Args)
 env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
-    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 ', 'doorkey8x8'),
+    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 0.000001', 'doorkey8x8'),
     # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 10000000', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
     # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000', 'multiroomS5N4'),
-    ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000', 'multiroomS10N6'),
+    ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.000001', 'multiroomS10N6'),
 ]
 
 @dataclass(frozen=True)
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     lr = [1e-4, 1e-5]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
-    all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
+    # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
 
     commands = construct_all_commands(base_cmd, all_options)
     print(f' ===== No. experiments: {len(commands)} ===== ')
