@@ -12,7 +12,7 @@ class Args:
     """track the experiment"""
     wandb_project_name: str = 'gridworld-rnd-v2-unified-2'
     """track the experiment"""
-    repeats: int = 4
+    repeats: int = 10
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -30,7 +30,7 @@ class Args:
     """avaiable"""
     include_blocky: bool = True
     """avaiable"""
-    seed: int = 46
+    seed: int = 1
     """seed"""
     max_workers: int = 4    
     """Max gpu workeres"""
@@ -43,8 +43,8 @@ env_ids_and_tags = [
     ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 1500000 --int-coef 0.000001', 'doorkey8x8'),
     # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.000001', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
-    # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000', 'multiroomS5N4'),
-    ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.000001', 'multiroomS10N6'),
+    # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005', 'multiroomS5N4'),
+    # ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.0005', 'multiroomS10N6'),
 ]
 
 @dataclass(frozen=True)
@@ -150,9 +150,9 @@ if __name__ == '__main__':
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
     # ent_coef = [0.01, 0.005]
-    lr = [1e-4, 1e-5]
+    # lr = [1e-4, 1e-5]
     # all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
-    all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
+    # all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
     # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
 
     commands = construct_all_commands(base_cmd, all_options)
