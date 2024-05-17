@@ -22,7 +22,7 @@ class Args:
     """avaliable device ids"""
     include_none_rnd: bool = False
     """avaliable device ids"""
-    include_noisy: bool = False
+    include_noisy: bool = True
     """avaliable device ids"""
     include_template: bool = True
     """avaiable"""
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py  --ext-coef 2.0 --ent-coef 0.005 --learning-rate 0.00005 --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py  --ext-coef 2.0 --ent-coef 0.001 --learning-rate 0.00005 --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
