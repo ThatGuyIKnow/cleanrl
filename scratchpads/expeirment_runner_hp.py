@@ -12,7 +12,7 @@ class Args:
     """track the experiment"""
     wandb_project_name: str = 'gridworld-rnd-v2-unified-dk8x8-masked-hp'
     """track the experiment"""
-    repeats: int = 3
+    repeats: int = 2
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -144,8 +144,8 @@ if __name__ == '__main__':
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
 
 
-    ext_coef = [1.0, 5.0, 10.0]
-    all_options.append(Option('Ext coef', [None, ] * len(ext_coef), ext_coef, '--ext-coef'))
+    # ext_coef = [1.0, 5.0, 10.0]
+    # all_options.append(Option('Ext coef', [None, ] * len(ext_coef), ext_coef, '--ext-coef'))
 
     if args.repeats:
         all_options.append(Option('seed', 
@@ -154,7 +154,7 @@ if __name__ == '__main__':
                                   '--seed'))
     ent_coef = [0.01, 0.005, 0.0005]
     lr = [1e-4, 5e-5, 1e-5]
-    vf = [0.3, 0.5, 0.7]
+    vf = [0.3, 0.5]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
     all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
@@ -166,16 +166,16 @@ if __name__ == '__main__':
     print(f' ===== No. experiments: {len(commands)} ===== ')
 
 
-    # Using ThreadPoolExecutor to manage concurrent execution
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
-        # Map commands to future tasks
-        future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
-        # As each command completes, print its result
-        for future in concurrent.futures.as_completed(future_to_cmd):
-            cmd = future_to_cmd[future]
-            try:
-                result = future.result()
-                print(f"Result: '{result}' from '{cmd}'")
-            except Exception as exc:
-                print(f"Command '{cmd}' generated an exception: {exc}")
+    # # Using ThreadPoolExecutor to manage concurrent execution
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+    #     # Map commands to future tasks
+    #     future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
+    #     # As each command completes, print its result
+    #     for future in concurrent.futures.as_completed(future_to_cmd):
+    #         cmd = future_to_cmd[future]
+    #         try:
+    #             result = future.result()
+    #             print(f"Result: '{result}' from '{cmd}'")
+    #         except Exception as exc:
+    #             print(f"Command '{cmd}' generated an exception: {exc}")
 
