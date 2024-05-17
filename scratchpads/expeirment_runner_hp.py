@@ -10,9 +10,9 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd-v2-unified-tune'
+    wandb_project_name: str = 'gridworld-rnd-v2-unified-dk8x8-masked-hp'
     """track the experiment"""
-    repeats: int = 1
+    repeats: int = 3
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -26,11 +26,11 @@ class Args:
     """avaliable device ids"""
     include_template: bool = True
     """avaiable"""
-    include_camera_modes: bool = True
+    include_camera_modes: bool = False
     """avaiable"""
-    include_blocky: bool = True
+    include_blocky: bool = False
     """avaiable"""
-    seed: int = 1
+    seed: int = 5
     """seed"""
     max_workers: int = 4    
     """Max gpu workeres"""
@@ -40,11 +40,11 @@ args = tyro.cli(Args)
 env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
-    # ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 3000000 ', 'doorkey8x8'),
-    # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 10000000', 'doorkey16x16'),
-    # # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
-    # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000', 'multiroomS5N4'),
-    ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 3000000', 'multiroomS10N6'),
+    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 1500000 --int-coef 0.000001', 'doorkey8x8'),
+    # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.000001', 'doorkey16x16'),
+    # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
+    # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005', 'multiroomS5N4'),
+    # ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.0005', 'multiroomS10N6'),
 ]
 
 @dataclass(frozen=True)
@@ -108,20 +108,20 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py --ext-coef 1.0 --ent-coef 0.005 --int-coef 0.0001 --learning-rate 0.00005 --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py  --ext-coef 2.0 --ent-coef 0.001 --learning-rate 0.00005 --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
     env_ids, env_tags = transpose(env_ids_and_tags)
     all_options = []
     env_bg_tags = ['normal', ]
-    env_options = ['None --update_epochs 8', ]
+    env_options = ['--update_epochs 8', ]
     if args.include_noisy:
         env_bg_tags.extend(['noisy', ])
-        env_options.extend(['noisy --update_epochs 8', ])
+        env_options.extend(['--background_noise noisy --update_epochs 8', ])
     if args.include_blocky:
         env_bg_tags.extend(['blocky', ])
-        env_options.extend(['blocky --update_epochs 8', ])
+        env_options.extend(['--background_noise blocky --update_epochs 8', ])
     
     if args.include_camera_modes:
         env_bg_tags.extend(['full', 'agent_centric', 'room_centric', ])
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     
 
     all_options.append(Option('env_id', env_tags, env_ids, '--env-id'))
-    all_options.append(Option('background_noise', env_bg_tags, env_options, '--background_noise'))
+    all_options.append(Option('mods', env_bg_tags, env_options, ''))
     
     if args.include_random:
         all_options.append(Option('include_fixed', ['random','fixed_seed'], ['--no-fixed', '--fixed'], ''))
@@ -144,37 +144,38 @@ if __name__ == '__main__':
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
 
 
+    ext_coef = [1.0, 5.0, 10.0]
+    all_options.append(Option('Ext coef', [None, ] * len(ext_coef), ext_coef, '--ext-coef'))
+
     if args.repeats:
         all_options.append(Option('seed', 
                                   [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
-
-
-    ext_coef = [2.0, 1.0]
-    ent_coef = [0.001, 0.005]
+    ent_coef = [0.01, 0.005, 0.0005]
     lr = [1e-4, 5e-5, 1e-5]
-    all_options.append(Option('external coef', [None, ] * len(ext_coef), ext_coef, '--ext-coef'))
+    vf = [0.3, 0.5, 0.7]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
-    all_options.append(Option('include_template', [None, ], ['--no-use-template', ], ''))
+    all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
+    # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
+
     commands = construct_all_commands(base_cmd, all_options)
-    
     print(f' ===== No. experiments: {len(commands)} ===== ')
     print(*commands, sep='\n')
     print(f' ===== No. experiments: {len(commands)} ===== ')
 
 
     # Using ThreadPoolExecutor to manage concurrent execution
-    # with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
-    #     # Map commands to future tasks
-    #     future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
-    #     # As each command completes, print its result
-    #     for future in concurrent.futures.as_completed(future_to_cmd):
-    #         cmd = future_to_cmd[future]
-    #         try:
-    #             result = future.result()
-    #             print(f"Result: '{result}' from '{cmd}'")
-    #         except Exception as exc:
-    #             print(f"Command '{cmd}' generated an exception: {exc}")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+        # Map commands to future tasks
+        future_to_cmd = {executor.submit(run_command, cmd): cmd for cmd in commands}
+        # As each command completes, print its result
+        for future in concurrent.futures.as_completed(future_to_cmd):
+            cmd = future_to_cmd[future]
+            try:
+                result = future.result()
+                print(f"Result: '{result}' from '{cmd}'")
+            except Exception as exc:
+                print(f"Command '{cmd}' generated an exception: {exc}")
 
