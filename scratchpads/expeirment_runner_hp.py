@@ -144,20 +144,20 @@ if __name__ == '__main__':
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
 
 
-    # ext_coef = [1.0, 5.0, 10.0]
-    # all_options.append(Option('Ext coef', [None, ] * len(ext_coef), ext_coef, '--ext-coef'))
+    ext_coef = [10.0, 5.0, 1.0]
+    all_options.append(Option('Ext coef', [None, ] * len(ext_coef), ext_coef, '--ext-coef'))
 
     if args.repeats:
         all_options.append(Option('seed', 
                                   [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
-    ent_coef = [0.005, ]
-    lr = [1e-4, 5e-6, 1e-5]
-    vf = [0.3, 0.5]
+    ent_coef = [0.005, 0.001]
+    lr = [1e-5, ]
+    # vf = [0.3, 0.5]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
-    all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
+    # all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
     # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
 
     commands = construct_all_commands(base_cmd, all_options)
