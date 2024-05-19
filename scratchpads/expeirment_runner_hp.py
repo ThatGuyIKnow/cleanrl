@@ -10,9 +10,9 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd-v2-unified-dk8x8-masked-hp'
+    wandb_project_name: str = 'gridworld-rnd-v2-unified-dk8x8-2'
     """track the experiment"""
-    repeats: int = 2
+    repeats: int = 30
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -22,13 +22,13 @@ class Args:
     """avaliable device ids"""
     include_none_rnd: bool = False
     """avaliable device ids"""
-    include_noisy: bool = False
+    include_noisy: bool = True
     """avaliable device ids"""
     include_template: bool = True
     """avaiable"""
-    include_camera_modes: bool = False
+    include_camera_modes: bool = True
     """avaiable"""
-    include_blocky: bool = False
+    include_blocky: bool = True
     """avaiable"""
     seed: int = 5
     """seed"""
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py  --ext-coef 2.0 --ent-coef 0.001  --update-epochs 8 --learning-rate 0.00005 --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py  --ext-coef 2.0 --ent-coef 0.001 --learning-rate 0.00005 --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
