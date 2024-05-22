@@ -356,9 +356,9 @@ class Args:
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
-    masking_pretraining_epochs = 10
+    masking_pretraining_epochs: int = 10
     """pretraining epochs for masking"""
-    masking_pretraining_steps = 20
+    masking_pretraining_steps: int = 20
     """pretraining epochs for masking"""
 
     # to be filled in runtime
@@ -705,6 +705,8 @@ if __name__ == "__main__":
     print("Start pretraining masking/template")
 
     for i in range(args.masking_pretraining_epochs):
+        if not args.use_template:
+            break
         b_obs, b_next_obs, b_actions = gather_samples(envs, args.template_batch * args.masking_pretraining_steps)
 
         b_obs = b_obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
