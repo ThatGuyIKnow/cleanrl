@@ -338,6 +338,8 @@ class Args:
     """patience for early stopping"""
 
     # masking
+    use_template: bool = True
+    """use_template"""
     template_size: int = 4
     """masking template cell size"""
     alpha: float = 0.0
@@ -737,7 +739,10 @@ if __name__ == "__main__":
         if len(next_ob) % (args.num_steps * args.num_envs) == 0:
             next_ob = np.stack(next_ob)
             mask = np.stack(masks)
-            obs_rms.update(next_ob * mask)
+            if args.use_template:
+                obs_rms.update(next_ob * mask)
+            else:
+                obs_rms.update(next_ob)
             next_ob = []
             masks = []
 
@@ -776,7 +781,11 @@ if __name__ == "__main__":
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(done).to(device)
             mask = template.get_mask(next_obs.to(device))
-            masked_next_obs = next_obs * mask
+
+            if args.use_template:
+                masked_next_obs = next_obs * mask
+            else:
+                masked_next_obs = next_obs
             if args.use_mean:
                 rnd_next_obs = (
                     (
@@ -880,7 +889,8 @@ if __name__ == "__main__":
 
         # mask = rnd_model.make_template(b_player_pos)
         masked_b_obs = b_obs.clone().detach()
-        masked_b_obs *= b_player_masks 
+        if args.use_template:
+            masked_b_obs *= b_player_masks 
         obs_rms.update(masked_b_obs.cpu().numpy())
 
         # Optimizing the policy and value network
@@ -968,7 +978,7 @@ if __name__ == "__main__":
                 if approx_kl > args.target_kl:
                     break
 
-        if update % args.template_train_every == 0:
+        if update % args.template_train_every == 0 and args.use_template:
             b_obs = obs.swapdims(0, 1).reshape((-1,) + envs.single_observation_space.shape)
             b_actions = actions.swapdims(0, 1).reshape(-1)
             b_dones = dones.swapdims(0, 1).reshape(-1).cpu().bool().numpy()
