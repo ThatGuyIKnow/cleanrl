@@ -108,7 +108,7 @@ if __name__ == '__main__':
         
 
     # Construct commands
-    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py  --ext-coef 2.0 --ent-coef 0.001 --learning-rate 0.00005 --device " + "{0}"
+    base_cmd = f"python cleanrl/ppo_rnd_gridworld_unified.py --device " + "{0}"
     if args.track:
         base_cmd += f' --track --wandb-project-name {args.wandb_project_name}'
 
@@ -144,7 +144,7 @@ if __name__ == '__main__':
         all_options.append(Option('include_rnd', ['base','rnd'], [0, 1], '--int-coef'))
 
 
-    ext_coef = [5.0,]
+    ext_coef = [2.0,]
     all_options.append(Option('Ext coef', [None, ] * len(ext_coef), ext_coef, '--ext-coef'))
 
     if args.repeats:
@@ -153,7 +153,7 @@ if __name__ == '__main__':
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
     ent_coef = [0.005,]
-    lr = [1e-5, ]
+    lr = [5e-5, ]
     # vf = [0.3, 0.5]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
