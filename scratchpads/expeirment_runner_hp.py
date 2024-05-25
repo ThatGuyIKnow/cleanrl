@@ -12,7 +12,7 @@ class Args:
     """track the experiment"""
     wandb_project_name: str = 'gridworld-rnd-v2-unified-mrn6s10-no-mask'
     """track the experiment"""
-    repeats: int = 30
+    repeats: int = 10
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -161,6 +161,7 @@ if __name__ == '__main__':
     # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
 
     commands = construct_all_commands(base_cmd, all_options)
+    commands = commands[8:]
     print(f' ===== No. experiments: {len(commands)} ===== ')
     print(*commands, sep='\n')
     print(f' ===== No. experiments: {len(commands)} ===== ')
