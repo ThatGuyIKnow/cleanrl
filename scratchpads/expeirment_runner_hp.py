@@ -153,7 +153,7 @@ if __name__ == '__main__':
                                   [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
-    ent_coef = [0.005,]
+    ent_coef = [0.001,]
     lr = [1e-4, ]
     # vf = [0.3, 0.5]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
