@@ -13,6 +13,7 @@ from visual_gridworld.gridworld.minigrid_procgen import (DoorKey5x5Gridworld,
                                                          MultiRoomS4N2GridWorld,
                                                          MultiRoomS5N4GridWorld,
                                                          MultiRoomS10N6GridWorld, 
+                                                         MultiRoomS5N6GridWorld, 
                                                          NoisyDoorKey8x8Gridworld, 
                                                          NoisyMultiRoomS10N6GridWorld, 
                                                          NoisyMultiRoomS4N2GridWorld, 
@@ -24,6 +25,7 @@ envs = [
     # MultiRoom
     MultiRoomS4N2GridWorld,
     MultiRoomS5N4GridWorld,
+    MultiRoomS5N6GridWorld,
     MultiRoomS10N6GridWorld,
     # DoorKey
     DoorKey5x5Gridworld, 

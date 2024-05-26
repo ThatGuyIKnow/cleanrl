@@ -15,20 +15,20 @@ from visual_gridworld.gridworld.minigrid_procgen import BlockyBackgroundGridworl
 from multi_subproc import SubprocVecEnv
 
 observation = None
-class MultiSubprocVecEnv(SubprocVecEnv):
-    def __init__(self, env_fns: List[Callable[[], gym.Env]], start_method: str | None = None):
-        super().__init__(env_fns, start_method)
-        self.no_proc = len(env_fns)
+# class MultiSubprocVecEnv(SubprocVecEnv):
+#     def __init__(self, env_fns: List[Callable[[], gym.Env]], start_method: str | None = None):
+#         super().__init__(env_fns, start_method)
+#         self.no_proc = len(env_fns)
 
 
-    def step(self, actions: np.ndarray) -> cloudpickle.Tuple[np.ndarray | Dict[str, np.ndarray] | cloudpickle.Tuple[np.ndarray] | List[Dict]]:
-        actions = np.split(actions, self.no_proc)
-        return super().step(actions)
+#     def step(self, actions: np.ndarray) -> cloudpickle.Tuple[np.ndarray | Dict[str, np.ndarray] | cloudpickle.Tuple[np.ndarray] | List[Dict]]:
+#         actions = np.split(actions, self.no_proc)
+#         return super().step(actions)
 
 if __name__ == "__main__":
     num_envs = 64
     no_proc = 1
-    e = gym.make('Visual/DoorKey8x8-Gridworld-v0', cell_size=8, seed=1, num_envs=num_envs, render_mode='human', fixed=True, camera_mode = 'room_centric')
+    e = gym.make('Visual/MultiRoomS5N6-Gridworld-v0', cell_size=8, seed=2, num_envs=num_envs, render_mode='human', fixed=True, camera_mode = 'full')
     e = GridworldResizeObservation(e, (84, 84))
     e.reset()
 

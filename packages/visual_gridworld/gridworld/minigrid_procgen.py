@@ -924,6 +924,20 @@ class MultiRoomS5N4GridWorld(Gridworld):
         random_tile = RandomLuminationTiles(cell_size, seed)
         super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps, **kwargs)
 
+class MultiRoomS5N6GridWorld(Gridworld):
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    env_name = "MultiRoomS5N6-Gridworld-v0"
+    room_count = 6
+    max_room_size = 5
+    _max_episode_steps= room_count * 20
+
+    def __init__(self, cell_size = 30, num_envs=1, fixed = False, render_mode: Literal['human', 'rgb_array'] = 'rgb_array', seed=None, **kwargs):
+        width = height = int(self.room_count * self.max_room_size)
+        grid_gen = MultiRoomGridworld(seed, fixed, width=width, height=height, room_count=self.room_count, max_room_size=self.max_room_size)
+        random_tile = RandomLuminationTiles(cell_size, seed)
+        super().__init__(width, height, self.room_count-1, cell_size, num_envs, render_mode, grid_gen, random_tile, seed, self._max_episode_steps, **kwargs)
+
+
 class MultiRoomS10N6GridWorld(Gridworld):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     env_name = "MultiRoomS10N6-Gridworld-v0"

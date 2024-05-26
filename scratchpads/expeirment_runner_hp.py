@@ -10,7 +10,7 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd-v2-unified-mrn6s10-no-mask'
+    wandb_project_name: str = 'gridworld-rnd-v2-unified-mrn5s6-no-mask'
     """track the experiment"""
     repeats: int = 10
     """number of times to repeat"""
@@ -43,8 +43,9 @@ env_ids_and_tags = [
     # ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.01 --num_steps 400 --update_epochs 8 --num_envs 64', 'doorkey8x8'),
     # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.000001', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
-    # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005', 'multiroomS5N4'),
-    ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS10N6'),
+    # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS5N4'),
+    ('Visual/MultiRoomS5N6-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS5N6'),
+    # ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS10N6'),
 ]
 
 @dataclass(frozen=True)
