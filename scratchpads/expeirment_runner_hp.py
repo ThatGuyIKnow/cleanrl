@@ -162,7 +162,6 @@ if __name__ == '__main__':
     # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
 
     commands = construct_all_commands(base_cmd, all_options)
-    commands = commands[8:]
     print(f' ===== No. experiments: {len(commands)} ===== ')
     print(*commands, sep='\n')
     print(f' ===== No. experiments: {len(commands)} ===== ')
