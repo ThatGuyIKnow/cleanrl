@@ -154,7 +154,7 @@ if __name__ == '__main__':
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
     ent_coef = [0.005,]
-    lr = [5e-5, ]
+    lr = [1e-4, ]
     # vf = [0.3, 0.5]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
