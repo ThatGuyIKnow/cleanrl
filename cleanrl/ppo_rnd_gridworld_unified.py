@@ -356,7 +356,7 @@ class Args:
     """template epochs"""
     template_training_schedule: Tuple[List[int], List[int]] = tuple([[],[]])
     """epoch training schedule. Useful for faster training"""
-    masking_pretraining_epochs: int = 10
+    masking_pretraining_epochs: int = 15
     """pretraining epochs for masking"""
     masking_pretraining_steps: int = 20
     """pretraining epochs for masking"""
@@ -729,7 +729,7 @@ if __name__ == "__main__":
     next_ob = []
     masks = []
     for step in tqdm(range(args.num_steps * args.num_iterations_obs_norm_init), smoothing=0.05):
-        if args.use_mean:
+        if not args.use_mean:
             break
         acs = np.random.randint(0, envs.single_action_space.n, size=(args.num_envs,))
         s, r, d, t, _ = envs.step(acs)
@@ -1020,7 +1020,7 @@ if __name__ == "__main__":
             writer.add_scalar("losses/action_accuracy", np.array(running_accuracy).mean(), global_step)
 
             b_obs_subset = b_obs[b_inds[:16]]
-            if args.track and len(b_obs_subset) > 0 and False:
+            if args.track and len(b_obs_subset) > 0:
                 # Assuming b_obs_subset is a tensor
                 _, att, raw_m = template.net.get_mask(b_obs_subset, full_output=True)
                 m = (raw_m * att[...,None]).sum(1, keepdim=True)
