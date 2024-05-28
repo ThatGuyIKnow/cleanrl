@@ -10,9 +10,9 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd-v2-unified-mrn5s6-no-mask'
+    wandb_project_name: str = 'gridworld-rnd-v2-unified-mrn5s6-no-mask-HP'
     """track the experiment"""
-    repeats: int = 10
+    repeats: int = 5
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
@@ -22,13 +22,13 @@ class Args:
     """avaliable device ids"""
     include_none_rnd: bool = False
     """avaliable device ids"""
-    include_noisy: bool = True
+    include_noisy: bool = False
     """avaliable device ids"""
     include_template: bool = True
     """avaiable"""
-    include_camera_modes: bool = True
+    include_camera_modes: bool = False
     """avaiable"""
-    include_blocky: bool = True
+    include_blocky: bool = False
     """avaiable"""
     seed: int = 5
     """seed"""
@@ -153,8 +153,8 @@ if __name__ == '__main__':
                                   [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
-    ent_coef = [0.005,]
-    lr = [5e-5, ]
+    ent_coef = [0.005, 0.001, 0.01]
+    lr = [5e-5, 1e-4, 5e-4]
     # vf = [0.3, 0.5]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
