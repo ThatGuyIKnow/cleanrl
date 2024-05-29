@@ -153,12 +153,13 @@ if __name__ == '__main__':
                                   [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
-    ent_coef = [0.005, 0.001, 0.01]
-    lr = [5e-5, 1e-4, 5e-4]
-    # vf = [0.3, 0.5]
+    ent_coef = [0.001,]
+    lr = [1e-4,]
+    vf = [0.3, 0.5, 0.8]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
-    # all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
+    all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
+    all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
     # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
 
     commands = construct_all_commands(base_cmd, all_options)
