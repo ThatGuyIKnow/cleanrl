@@ -10,9 +10,9 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd-v2-unified-mrn5s6-no-mask'
+    wandb_project_name: str = 'gridworld-rnd-v2-unified-mrn5s6-no-mask2'
     """track the experiment"""
-    repeats: int = 10
+    repeats: int = 15
     """number of times to repeat"""
     use_tag: bool = True
     """use programmed tags for logging in wandb"""
