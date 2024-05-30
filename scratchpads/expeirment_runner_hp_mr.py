@@ -44,7 +44,7 @@ env_ids_and_tags = [
     # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.000001', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
     # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS5N4'),
-    ('Visual/MultiRoomS5N6-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS5N6'),
+    ('Visual/MultiRoomS5N6-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.005  --update_epochs 8', 'multiroomS5N6'),
     # ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS10N6'),
 ]
 
@@ -153,11 +153,12 @@ if __name__ == '__main__':
                                   [None,]*args.repeats, 
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
-    ent_coef = [0.001, 0.01]
-    lr = [5e-5, 1e-4,]
-    vf = [0.3, 0.5]
+    ent_coef = [0.01, ]
+    lr = [5e-5, ]
+    vf = [0.5, ]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
+    all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
     all_options.append(Option('Value Func', [None, ] * len(vf), vf, '--vf-coef'))
     # all_options.append(Option('use norm', ['no-norm','norm'], ['--no-use-mean', '--use-mean'], ''))
 
