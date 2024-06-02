@@ -10,7 +10,7 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd-v2-mrn5s6-no-template'
+    wandb_project_name: str = 'gridworld-rnd-v2-doorkey8x8'
     """track the experiment"""
     repeats: int = 10
     """number of times to repeat"""
@@ -40,11 +40,11 @@ args = tyro.cli(Args)
 env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
-    # ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.01 --num_steps 400 --update_epochs 8 --num_envs 64', 'doorkey8x8'),
+    ('Visual/DoorKey8x8-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.0005 --update_epochs 8 --update_proportion 0.15 --ext-coef 5.0 --num-envs 16 --num-steps 400', 'doorkey8x8'),
     # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.000001', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
     # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS5N4'),
-    ('Visual/MultiRoomS5N6-Gridworld-v0'  + ' --total-timesteps 6000000 --int-coef 0.05 --no-use-template --update_epochs 8 --update_proportion 0.15', 'multiroomS5N6'),
+    # ('Visual/MultiRoomS5N6-Gridworld-v0'  + ' --total-timesteps 6000000 --int-coef 0.05 --no-use-template --update_epochs 8 --update_proportion 0.15', 'multiroomS5N6'),
     # ('Visual/MultiRoomS10N6-Gridworld-v0'  + ' --total-timesteps 8000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS10N6'),
 ]
 
@@ -154,8 +154,8 @@ if __name__ == '__main__':
                                   list(args.seed+i for i in range(args.repeats)), 
                                   '--seed'))
     
-    ent_coef = [0.01, ]
-    lr = [5e-5, ]
+    ent_coef = [0.005, ]
+    lr = [1e-5, ]
     vf = [0.5, ]
     all_options.append(Option('entropy coef', [None, ] * len(ent_coef), ent_coef, '--ent-coef'))
     all_options.append(Option('learning rate', [None, ] * len(lr), lr, '--learning-rate'))
