@@ -773,7 +773,7 @@ if __name__ == "__main__":
             mask = np.stack(masks)
             if args.use_template:
                 masked_b_obs = next_ob * mask + (1-mask) * obs_rms.mean
-                obs_rms.update(next_ob * mask)
+                obs_rms.update(masked_b_obs)
                 obs_rms.count = 10
             else:
                 obs_rms.update(next_ob)
