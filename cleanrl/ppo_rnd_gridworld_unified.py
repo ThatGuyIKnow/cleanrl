@@ -890,10 +890,12 @@ if __name__ == "__main__":
         b_advantages = b_int_advantages * args.int_coef + b_ext_advantages * args.ext_coef
 
         # mask = rnd_model.make_template(b_player_pos)
-        masked_b_obs = b_obs.clone().detach()
+        masked_b_obs = b_obs.clone().detach().cpu()
         if args.use_template:
-            masked_b_obs *= b_player_masks + obs_rms.mean()
-        obs_rms.update(masked_b_obs.cpu().numpy())
+            masked_b_obs = masked_b_obs * b_player_masks
+            masked_b_obs = masked_b_obs.cpu().numpy()
+            masked_b_obs += (1-b_player_masks.cpu().numpy()) * obs_rms.mean()
+        obs_rms.update(masked_b_obs)
 
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
