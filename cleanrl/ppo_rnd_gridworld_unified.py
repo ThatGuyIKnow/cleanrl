@@ -895,7 +895,7 @@ if __name__ == "__main__":
         if args.use_template:
             masked_b_obs = masked_b_obs * b_player_masks + (1-b_player_masks) * mean_img
         obs_rms.update(masked_b_obs.cpu().numpy())
-        obs_rms.epsilon = 0.02
+        obs_rms.count = 100
 
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
