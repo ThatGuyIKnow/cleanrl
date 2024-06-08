@@ -742,7 +742,10 @@ if __name__ == "__main__":
             next_ob = np.stack(next_ob)
             mask = np.stack(masks)
             if args.use_template:
+                mean_img = torch.from_numpy(obs_rms.mean).to(device)
+                masked_b_obs = next_ob * mask + (1-mask) * mean_img
                 obs_rms.update(next_ob * mask)
+                obs_rms.count = 10
             else:
                 obs_rms.update(next_ob)
             next_ob = []
@@ -895,7 +898,7 @@ if __name__ == "__main__":
         if args.use_template:
             masked_b_obs = masked_b_obs * b_player_masks + (1-b_player_masks) * mean_img
         obs_rms.update(masked_b_obs.cpu().numpy())
-        obs_rms.count = 100
+        obs_rms.count = 10
 
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
