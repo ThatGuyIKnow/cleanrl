@@ -891,18 +891,17 @@ if __name__ == "__main__":
 
         # mask = rnd_model.make_template(b_player_pos)
         masked_b_obs = b_obs.clone().detach()
+        mean_img = torch.from_numpy(obs_rms.mean).to(device)
         if args.use_template:
-            masked_b_obs = masked_b_obs * b_player_masks
-            masked_b_obs = masked_b_obs.cpu().numpy()
-            masked_b_obs += (1-b_player_masks).cpu().numpy() * obs_rms.mean()
-        obs_rms.update(masked_b_obs)
+            masked_b_obs = masked_b_obs * b_player_masks + (1-b_player_masks) * mean_img
+        obs_rms.update(masked_b_obs.cpu().numpy())
 
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
         if args.use_mean:
             rnd_next_obs = (
                 (
-                    (masked_b_obs - torch.from_numpy(obs_rms.mean).to(device))
+                    (masked_b_obs - mean_img)
                     / torch.sqrt(torch.from_numpy(obs_rms.var).to(device))
                 ).clip(-5, 5)
             ).float()
