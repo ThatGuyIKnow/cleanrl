@@ -10,7 +10,7 @@ import tyro
 class Args:
     track: bool = False
     """track the experiment"""
-    wandb_project_name: str = 'gridworld-rnd-v2-doorkey16x16-yes-template'
+    wandb_project_name: str = 'gridworld-rnd-v2-doorkey16x16-yes-template-meany'
     """track the experiment"""
     repeats: int = 10
     """number of times to repeat"""
@@ -40,7 +40,7 @@ args = tyro.cli(Args)
 env_ids_and_tags = [
     # ('Visual/DoorKey5x5-Gridworld-v0' + ' --total-timesteps 2000000 --int-coef 1.0 --update_epochs 8', 'doorkey5x5'),
     # ('Visual/DoorKey6x6-Gridworld-v0' + ' --total-timesteps 3000000 --int-coef 1.0 --update_epochs 8', 'doorkey6x6'),
-    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.0001 --update_epochs 8 --update_proportion 0.15 --ext-coef 5.0 --num-envs 16 --num-steps 400', 'doorkey16x16'),
+    ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.0001 --update_epochs 8 --ext-coef 5.0 --num-envs 16 --num-steps 400', 'doorkey16x16'),
     # ('Visual/DoorKey16x16-Gridworld-v0' + ' --total-timesteps 5000000 --int-coef 0.000001', 'doorkey16x16'),
     # ('Visual/MultiRoomS4N2-Gridworld-v0'  + ' --total-timesteps 2000000', 'multiroomS4N2'),
     # ('Visual/MultiRoomS5N4-Gridworld-v0'  + ' --total-timesteps 3000000 --int-coef 0.0005  --update_epochs 8', 'multiroomS5N4'),
