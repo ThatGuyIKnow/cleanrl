@@ -772,8 +772,7 @@ if __name__ == "__main__":
             next_ob = np.stack(next_ob)
             mask = np.stack(masks)
             if args.use_template:
-                mean_img = torch.from_numpy(obs_rms.mean).to(device)
-                masked_b_obs = next_ob * mask + (1-mask) * mean_img
+                masked_b_obs = next_ob * mask + (1-mask) * obs_rms.mean
                 obs_rms.update(next_ob * mask)
                 obs_rms.count = 10
             else:
